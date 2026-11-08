@@ -201,6 +201,17 @@ var commandNeeds = map[string]need{
 	// named and signs with a key the caller named: it opens no store,
 	// contacts nobody and spends nothing, the wind tunnel's weight.
 	"proof": {action: auth.ActView},
+	// An export is one file holding, for every finding the analyst looked
+	// at, what it was shown, what it answered and how a person ruled —
+	// this organisation's whole triage record, signed in its name and made
+	// to leave the store for a training run. That is the weight of a
+	// data-subject export: an administrator's. Not the tune permission the
+	// analyst's eval takes, because the eval prints numbers to whoever ran
+	// it and this hands the record itself to somebody else. Checking a
+	// file is reading, and --log reads the audit log, so it is asked about
+	// the log's area below, where an auditor holds view.
+	"forge":        {action: auth.ActGrant},
+	"forge verify": {action: auth.ActView},
 	// An action changes something in somebody else's tool.
 	"action":           {action: auth.ActGrant},
 	"action catalogue": {action: auth.ActView},
@@ -639,6 +650,7 @@ var commandAreas = map[string]string{
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
 	"auditlog": auth.AreaLog, "compliance": auth.AreaLog, "bench": auth.AreaSecurity,
 	"windtunnel": auth.AreaSecurity, "proof": auth.AreaSecurity,
+	"forge": auth.AreaSecurity, "forge verify": auth.AreaLog,
 }
 
 // commandArea is the area a command works in, if it works in one.

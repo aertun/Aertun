@@ -215,6 +215,20 @@ var coverage = map[string]surfaces{
 			"caller's behalf; agents will submit claims to a queue the " +
 			"store's own key signs from, with the claim's author recorded",
 	},
+	// The forge: what the analyst saw and answered, and how a person ruled,
+	// as signed training episodes.
+	"forge": {
+		Why: "an export is a signed file made for a training run somewhere " +
+			"else and checked where it is used; its record is in the audit " +
+			"log, which has its own screen, and the suggestions it is made " +
+			"from are already on each finding's page",
+		NoMCP: "exporting the analyst's record is not an operation an agent " +
+			"performs: a model choosing what goes into the next model's " +
+			"training set is the thing being trained choosing its own " +
+			"lessons, and the export signs with a key file named on the " +
+			"command line, which an MCP server must never hold on a " +
+			"caller's behalf",
+	},
 	"action": {GUI: "/security/cases",
 		Why: "an action is asked for and approved on the incident's page; " +
 			"installing one and giving it a credential are the operator's",
