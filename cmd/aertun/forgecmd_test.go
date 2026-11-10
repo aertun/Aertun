@@ -116,7 +116,7 @@ func forgeSite(t *testing.T) forgeFixture {
 		t.Fatal(err)
 	}
 	if _, _, err := runTriage(context.Background(), root, human("dana"), 20, false,
-		time.Now().UTC()); err != nil {
+		time.Now().UTC(), nil); err != nil {
 		t.Fatal(err)
 	}
 

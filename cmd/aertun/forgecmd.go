@@ -182,6 +182,7 @@ var abstentionWords = map[string]forge.Abstention{
 	"not confident enough":                     forge.BelowThreshold,
 	"did not hold without the attacker's text": forge.CounterfactualUnconfirmed,
 	"no usable answer":                         forge.NoUsableAnswer,
+	"no certified gate":                        forge.NoCertifiedGate,
 }
 
 // proposedVerdict is the verdict behind a state the analyst suggested; it

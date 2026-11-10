@@ -23,7 +23,9 @@ import (
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
 	"github.com/aertun/aertun/internal/model"
+	"github.com/aertun/aertun/internal/pack"
 	"github.com/aertun/aertun/internal/pii"
+	"github.com/aertun/aertun/internal/proof"
 )
 
 // The analyst: a model's first pass over the queue, as suggestions.
@@ -128,6 +130,19 @@ func (m metered) BeginUsage() { m.meter.begin() }
 // TakeUsage closes the bracket for one finding's questions.
 func (m metered) TakeUsage() (in, out int, measured bool) { return m.meter.take() }
 
+// CompleteReply passes decide's request for token probabilities through to
+// the model when it can return them, so wrapping the model for its meter
+// does not hide that channel; a model that cannot is asked the plain way.
+func (m metered) CompleteReply(ctx context.Context, system, user string,
+	p model.Params) (model.Reply, error) {
+
+	if rm, ok := m.Model.(model.Replier); ok {
+		return rm.CompleteReply(ctx, system, user, p)
+	}
+	out, err := m.Model.Complete(ctx, system, user)
+	return model.Reply{Text: out, Raw: out}, err
+}
+
 // usaged is what runTriage asks of its model: can it account for itself?
 type usaged interface {
 	BeginUsage()
@@ -182,9 +197,11 @@ func cmdAnalyst(root string, args []string) error {
 		return analystTriage(root, args[1:])
 	case "eval":
 		return analystEval(root, args[1:])
+	case "calibrate":
+		return analystCalibrate(root, args[1:])
 	default:
-		return fmt.Errorf("unknown analyst command %q; try plan, triage "+
-			"or eval", args[0])
+		return fmt.Errorf("unknown analyst command %q; try plan, triage, "+
+			"eval or calibrate", args[0])
 	}
 }
 
@@ -314,9 +331,11 @@ func (c *triageCost) tokens() map[string]string {
 	}
 }
 
-// runTriage is the analyst's pass. on is who asked for it.
+// runTriage is the analyst's pass. on is who asked for it. cal is a
+// calibration certificate offered to the gate, or nil for the declared
+// threshold.
 func runTriage(ctx context.Context, root string, caller *Caller, limit int,
-	dry bool, now time.Time) ([]triageOutcome, int, error) {
+	dry bool, now time.Time, cal *decide.Calibration) ([]triageOutcome, int, error) {
 
 	if caller.Kind == audit.KindAI {
 		return nil, 0, fmt.Errorf("the analyst is started by a person. A " +
@@ -363,7 +382,7 @@ func runTriage(ctx context.Context, root string, caller *Caller, limit int,
 		if um, ok := m.(usaged); ok {
 			um.BeginUsage()
 		}
-		s, terr := analyst.Ask(ctx, m, state, trace)
+		s, terr := analyst.AskWith(ctx, m, state, trace, cal)
 		if terr != nil {
 			return out, waiting, fmt.Errorf("%s: %w", f.ID, terr)
 		}
@@ -406,6 +425,14 @@ func runTriage(ctx context.Context, root string, caller *Caller, limit int,
 		for k, v := range sawDetail(state.Facts) {
 			rec.Detail[k] = v
 		}
+		if cal != nil && s.Threshold > 0 {
+			// Which gate the answer met, from decide's own account: a
+			// suggestion let through by a certified threshold reads
+			// differently on the record from one the declared threshold
+			// let through.
+			rec.Detail["threshold"] = fmt.Sprintf("%.2f", s.Threshold)
+			rec.Detail["gate"] = map[bool]string{true: "certified", false: "declared"}[s.Certified]
+		}
 		if s.To != "" {
 			rec.Action = finding.ProposalAction
 			rec.Detail["to"] = string(s.To)
@@ -428,6 +455,11 @@ func runTriage(ctx context.Context, root string, caller *Caller, limit int,
 // words, so nothing a model produced is copied into the log.
 func abstainWord(why string) string {
 	switch {
+	case strings.Contains(why, "calibration certificate"):
+		// Usable, and confident or not: held back because the gate it was
+		// offered was not one that could certify it. A different lesson
+		// from either a weak answer or a missing one.
+		return "no certified gate"
 	case strings.Contains(why, "threshold"):
 		return "not confident enough"
 	case strings.Contains(why, "no model"), strings.Contains(why, "could not be used"):
@@ -454,20 +486,45 @@ func analystTriage(root string, args []string) error {
 	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
 	limit := fs.Int("limit", 20, "how many findings to look at")
 	dry := fs.Bool("dry-run", false, "look, and record nothing")
+	calAt := fs.String("calibration", "", "a signed calibration certificate "+
+		"(analyst calibrate writes one) whose threshold gates the suggestions "+
+		"in place of the declared one, when it fits this model")
+	calKey := fs.String("calibration-key", "", "the public key the "+
+		"certificate must be signed by")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *limit < 1 || *limit > 500 {
 		return fmt.Errorf("--limit is between 1 and 500")
 	}
+	if (*calAt == "") != (*calKey == "") {
+		return fmt.Errorf("--calibration and --calibration-key go together: a " +
+			"certificate is checked against a key you were handed, never one it supplies")
+	}
 	caller := resolveCaller(root, flagToken)
 	if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 		return err
 	}
+	var cal *decide.Calibration
+	if *calAt != "" {
+		body, err := proof.ReadBounded(*calAt, proof.MaxEnvelope)
+		if err != nil {
+			return err
+		}
+		pub, err := pack.LoadPublicKey(*calKey)
+		if err != nil {
+			return err
+		}
+		adapter, err := modelAdapter()
+		if err != nil {
+			return err
+		}
+		cal = &decide.Calibration{Certificate: body, Key: pub, Adapter: adapter}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	out, waiting, err := runTriage(ctx, root, caller, *limit, *dry,
-		time.Now().UTC())
+		time.Now().UTC(), cal)
 	if err != nil {
 		return err
 	}
@@ -513,6 +570,9 @@ func analystTriage(root string, args []string) error {
 		w.Human(", %d more waiting", waiting)
 	}
 	w.Human("\n")
+	if cal != nil {
+		w.Human("  %s%s%s\n", dim, gateLine(out), reset)
+	}
 	if *dry {
 		w.Human("  %sa dry run: nothing was recorded%s\n", dim, reset)
 	} else {
@@ -520,6 +580,33 @@ func analystTriage(root string, args []string) error {
 			"finding's page for a person to agree with or not%s\n", dim, reset)
 	}
 	return nil
+}
+
+// gateLine says what became of the calibration certificate a run was
+// offered, from decide's own account on each answer: used, or refused and
+// why — one of calib's closed set of reasons — and in either case how many
+// answers met a certified threshold.
+func gateLine(out []triageOutcome) string {
+	status, certified := "", 0
+	for _, o := range out {
+		if o.Certificate != "" {
+			status = o.Certificate
+		}
+		if o.Certified {
+			certified++
+		}
+	}
+	switch {
+	case status == "":
+		return "the calibration certificate was not consulted: the model gave no answer to gate"
+	case status == decide.CertificateUsed:
+		return fmt.Sprintf("the calibration certificate set the gate; %d of %d "+
+			"answer(s) were held to its threshold, and any other went to a "+
+			"person because it was not scored on the certificate's channel",
+			certified, len(out))
+	}
+	return "the calibration certificate was " + status + ", so every answer " +
+		"went to a person"
 }
 
 // ruledCase is one finding people have ruled on, with the moment its

@@ -184,7 +184,8 @@ func SeverityOf(s string) (Severity, bool) { return lookup[severities](s) }
 type abstentions struct{}
 
 func (abstentions) words() []string {
-	return []string{"below-threshold", "counterfactual-unconfirmed", "no-usable-answer"}
+	return []string{"below-threshold", "counterfactual-unconfirmed", "no-usable-answer",
+		"no-certified-gate"}
 }
 
 // Abstention is why the analyst offered no verdict.
@@ -200,6 +201,10 @@ var (
 	// NoUsableAnswer: nothing the model said was one of the three words,
 	// or its samples tied.
 	NoUsableAnswer = must[abstentions]("no-usable-answer")
+	// NoCertifiedGate: a usable answer held back because the calibration
+	// certificate offered to gate it was refused, or was fitted on a score
+	// the answer did not carry.
+	NoCertifiedGate = must[abstentions]("no-certified-gate")
 )
 
 type outcomes struct{}

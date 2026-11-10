@@ -169,11 +169,24 @@ func ReadEnvelope(path string) (*Envelope, error) {
 	if err != nil {
 		return nil, err
 	}
+	env, err := ParseEnvelope(body)
+	if err != nil {
+		return nil, fmt.Errorf("%s %w", path, err)
+	}
+	return env, nil
+}
+
+// ParseEnvelope reads an envelope already in memory, under the same bound
+// and the same strictness as a file.
+func ParseEnvelope(body []byte) (*Envelope, error) {
+	if len(body) > MaxEnvelope {
+		return nil, fmt.Errorf("is larger than the %d bytes a proof may be", MaxEnvelope)
+	}
 	var env Envelope
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&env); err != nil {
-		return nil, fmt.Errorf("%s is not a proof envelope: %w", path, err)
+		return nil, fmt.Errorf("is not a proof envelope: %w", err)
 	}
 	return &env, nil
 }

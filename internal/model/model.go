@@ -15,11 +15,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/aertun/aertun/internal/fetch"
@@ -57,7 +59,20 @@ type HTTPModel struct {
 	// the provider said nothing. Usage is otherwise computed and thrown
 	// away — a cost nobody can see is a cost nobody can question.
 	OnUsage func(Usage)
+
+	// logprobs is what this endpoint has shown about token probabilities:
+	// not yet asked, returns them, or does not. Learned from the first
+	// request that asks and kept, so an endpoint that refuses the field
+	// is asked for it once rather than on every call.
+	logprobs atomic.Int32
 }
+
+// What an endpoint has shown about token probabilities.
+const (
+	logprobsUnknown int32 = iota
+	logprobsReturned
+	logprobsRefused
+)
 
 // StatusError is what a provider answered when it did not answer 200,
 // kept with its status so a caller can tell a route that is unavailable
@@ -186,6 +201,11 @@ type Params struct {
 	Temperature *float64
 	Seed        *int64
 	MaxTokens   *int
+	// Logprobs asks for the reply's token probabilities. Sent only to an
+	// endpoint not already known to refuse them, and only on the call that
+	// can hand them back (CompleteReply): requesting what is then thrown
+	// away would make every reply larger for nothing.
+	Logprobs bool
 }
 
 // Tuned is a model that takes Params for one call. Satisfied by HTTPModel;
@@ -216,6 +236,71 @@ type Metered interface {
 	CompleteMetered(ctx context.Context, system, user string) (string, Usage, error)
 }
 
+// Token is one token of a reply and the log-probability the endpoint gave
+// it.
+type Token struct {
+	Text    string
+	Logprob float64
+}
+
+// Reply is a completion with what the endpoint said about it beyond the
+// text.
+type Reply struct {
+	// Text is the reply as the caller reads it.
+	Text string
+	// Raw is the reply exactly as the model produced it — what Tokens
+	// spell. The same as Text unless a wrapper rewrote Text: the privacy
+	// guard puts masked values back into Text and leaves Raw alone.
+	Raw   string
+	Usage Usage
+	// Tokens are the reply's tokens with their log-probabilities when the
+	// endpoint returned them, and nil when it did not or was not asked.
+	Tokens []Token
+}
+
+// maxTokens bounds how many token probabilities a reply carries. A reply
+// is a few words; one longer than this has its probabilities dropped
+// rather than walked.
+const maxTokens = 4096
+
+// Probability is the probability the model gave the bytes Raw[start:end]:
+// the product of the probabilities of the tokens that spell them, a token
+// that straddles an edge counting whole. False when there are no tokens,
+// when the tokens do not spell Raw exactly, when a log-probability is not
+// one (positive, or not a number), or when the span is not inside Raw — a
+// probability that cannot be tied to the exact bytes it is about is not
+// reported at all, and the caller falls back to what it had without one.
+func (r Reply) Probability(start, end int) (float64, bool) {
+	if len(r.Tokens) == 0 || start < 0 || end > len(r.Raw) || start >= end {
+		return 0, false
+	}
+	pos, sum, covered := 0, 0.0, false
+	for _, t := range r.Tokens {
+		next := pos + len(t.Text)
+		if next > len(r.Raw) || r.Raw[pos:next] != t.Text {
+			return 0, false
+		}
+		if math.IsNaN(t.Logprob) || math.IsInf(t.Logprob, 0) || t.Logprob > 0 {
+			return 0, false
+		}
+		if pos < end && next > start {
+			sum += t.Logprob
+			covered = true
+		}
+		pos = next
+	}
+	if pos != len(r.Raw) || !covered {
+		return 0, false
+	}
+	return math.Exp(sum), true
+}
+
+// Replier is a model that hands back the whole Reply, token probabilities
+// included when Params asks for them and the endpoint gives them.
+type Replier interface {
+	CompleteReply(ctx context.Context, system, user string, p Params) (Reply, error)
+}
+
 func (h *HTTPModel) Complete(ctx context.Context, system, user string) (string, error) {
 	out, _, err := h.CompleteMetered(ctx, system, user)
 	return out, err
@@ -225,7 +310,8 @@ func (h *HTTPModel) Complete(ctx context.Context, system, user string) (string, 
 // usage block every OpenAI-compatible server returns, or an estimate when
 // it returns none.
 func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (string, Usage, error) {
-	return h.complete(ctx, system, user, Params{})
+	r, err := h.exchange(ctx, system, user, Params{})
+	return r.Text, r.Usage, err
 }
 
 // CompleteTuned is Complete with Params the endpoint may honour: a
@@ -233,12 +319,57 @@ func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (s
 // than the server's default, and a cap on the reply. Params left nil are
 // not sent, so a caller that sets none sends exactly what Complete sends.
 func (h *HTTPModel) CompleteTuned(ctx context.Context, system, user string, p Params) (string, error) {
-	out, _, err := h.complete(ctx, system, user, p)
-	return out, err
+	// The text alone goes back from here, so token probabilities would be
+	// asked for and dropped.
+	p.Logprobs = false
+	r, err := h.exchange(ctx, system, user, p)
+	return r.Text, err
 }
 
-func (h *HTTPModel) complete(ctx context.Context, system, user string,
-	p Params) (string, Usage, error) {
+// CompleteReply is CompleteTuned returning the whole Reply. With
+// p.Logprobs it asks for token probabilities where the endpoint is not
+// known to refuse them, and keeps working where it does: an endpoint that
+// answers without them is not asked again, and one that refuses the
+// request outright (400 or 422 on the first request that asked) is asked
+// once more without the field and not asked for it again. Either way the
+// reply comes back with no Tokens, and the caller has the text it always
+// had.
+func (h *HTTPModel) CompleteReply(ctx context.Context, system, user string, p Params) (Reply, error) {
+	return h.exchange(ctx, system, user, p)
+}
+
+// exchange is one completion, with the endpoint's token probabilities
+// asked for when Params wants them and the endpoint has not shown it
+// refuses them.
+func (h *HTTPModel) exchange(ctx context.Context, system, user string, p Params) (Reply, error) {
+	state := h.logprobs.Load()
+	ask := p.Logprobs && state != logprobsRefused
+	r, code, err := h.post(ctx, system, user, p, ask)
+	if ask && state == logprobsUnknown &&
+		(code == http.StatusBadRequest || code == http.StatusUnprocessableEntity) {
+		// Some servers refuse a field they do not implement rather than
+		// ignore it. The first refusal is taken as that, once: asked again
+		// without the field, and never asked for it again, so a model that
+		// cannot give probabilities is still a model that answers.
+		h.logprobs.Store(logprobsRefused)
+		r, _, err = h.post(ctx, system, user, p, false)
+		return r, err
+	}
+	if ask && err == nil {
+		if len(r.Tokens) > 0 {
+			h.logprobs.Store(logprobsReturned)
+		} else {
+			h.logprobs.Store(logprobsRefused)
+		}
+	}
+	return r, err
+}
+
+// post sends one request and reads its reply, returning the HTTP status
+// beside the error so exchange can tell a refused field from a refused
+// request.
+func (h *HTTPModel) post(ctx context.Context, system, user string,
+	p Params, logprobs bool) (Reply, int, error) {
 
 	payload := map[string]any{
 		"model": h.Model,
@@ -257,15 +388,18 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 	if p.MaxTokens != nil && *p.MaxTokens > 0 {
 		payload["max_tokens"] = *p.MaxTokens
 	}
+	if logprobs {
+		payload["logprobs"] = true
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", Usage{}, err
+		return Reply{}, 0, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		h.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", Usage{}, err
+		return Reply{}, 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	// Omitted rather than sent empty. "Bearer " with nothing after it is a
@@ -278,7 +412,7 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 
 	resp, err := h.Client.Do(req)
 	if err != nil {
-		return "", Usage{}, fmt.Errorf("model request failed: %w", err)
+		return Reply{}, 0, fmt.Errorf("model request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -289,7 +423,7 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 		if len(snippet) > 300 {
 			snippet = snippet[:300]
 		}
-		return "", Usage{}, &StatusError{Code: resp.StatusCode, Body: snippet}
+		return Reply{}, resp.StatusCode, &StatusError{Code: resp.StatusCode, Body: snippet}
 	}
 
 	var out struct {
@@ -297,6 +431,12 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
+			Logprobs *struct {
+				Content []struct {
+					Token   string  `json:"token"`
+					Logprob float64 `json:"logprob"`
+				} `json:"content"`
+			} `json:"logprobs"`
 		} `json:"choices"`
 		Usage *struct {
 			Prompt     int `json:"prompt_tokens"`
@@ -304,12 +444,18 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 		} `json:"usage"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponse)).Decode(&out); err != nil {
-		return "", Usage{}, fmt.Errorf("cannot read the model's reply: %w", err)
+		return Reply{}, resp.StatusCode, fmt.Errorf("cannot read the model's reply: %w", err)
 	}
 	if len(out.Choices) == 0 {
-		return "", Usage{}, fmt.Errorf("the model returned no choices")
+		return Reply{}, resp.StatusCode, fmt.Errorf("the model returned no choices")
 	}
 	text := out.Choices[0].Message.Content
+	r := Reply{Text: text, Raw: text}
+	if lp := out.Choices[0].Logprobs; logprobs && lp != nil && len(lp.Content) <= maxTokens {
+		for _, t := range lp.Content {
+			r.Tokens = append(r.Tokens, Token{Text: t.Token, Logprob: t.Logprob})
+		}
+	}
 	u := Estimate(system+user, text)
 	if out.Usage != nil && out.Usage.Prompt >= 0 && out.Usage.Completion >= 0 &&
 		(out.Usage.Prompt > 0 || out.Usage.Completion > 0) {
@@ -318,5 +464,6 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 	if h.OnUsage != nil {
 		h.OnUsage(u)
 	}
-	return text, u, nil
+	r.Usage = u
+	return r, resp.StatusCode, nil
 }
