@@ -107,6 +107,7 @@ Detecting and deciding
   aertun twin record --out FILE | help     what the agent interface would answer now, in one file under its digest, for aertun mcp --twin to replay
   aertun forge export --key F --out F [--public-key F] | verify FILE --key F [--log]   what the analyst saw and answered, and how a person ruled, as signed episodes for training
   aertun verdict import FILE --source NAME | list | prove --source NAME --since DATE --tolerance R --key F   another vendor's AI verdicts scored against people's decisions, signed
+  aertun adjudicate draw --source NAME --since DATE --per N | list | next SAMPLE | judge SAMPLE --item N --judgement W --because "…" | size | prove SAMPLE --tolerance R --key F   closures judged again blind, on a random sample committed first
   aertun automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   aertun automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
   aertun geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
@@ -367,6 +368,8 @@ func main() {
 		err = cmdForge(root, cmdArgs)
 	case "verdict":
 		err = cmdVerdict(root, cmdArgs)
+	case "adjudicate":
+		err = cmdAdjudicate(root, cmdArgs)
 	case "vendor":
 		err = cmdVendor(root, cmdArgs)
 	case "access":

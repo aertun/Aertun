@@ -70,6 +70,10 @@ var destinations = []destination{
 	// them wrote. Viewing, because a proof is made to be read by whoever
 	// relies on the work it is about.
 	{"proofs", "Proofs", "/proving/proofs", "Proving ground", "proofs", auth.ActView},
+	// Beside Proofs: closures judged again blind, whose judgements become the
+	// proofs listed beside it. Viewing shows how far each review has got;
+	// judging an item asks for triage, at the operation.
+	{"adjudication", "Adjudication", "/proving/adjudication", "Proving ground", "proofs", auth.ActView},
 
 	// What is waiting and what is wrong, for everybody who signs in; where
 	// a sign-in lands.

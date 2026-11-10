@@ -32,10 +32,11 @@ var proofKinds = map[string]string{
 	proof.PredicateCalibration:    "calibration",
 	proof.PredicateVerdicts:       "verdicts",
 	proof.PredicateReconciliation: "reconciliation",
+	proof.PredicateAdjudication:   "adjudication",
 }
 
 // kindWords are the kinds a listing can be narrowed to.
-var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation"}
+var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication"}
 
 func proofKind(st *proof.Statement) string {
 	if k, ok := proofKinds[st.PredicateType]; ok {
@@ -48,7 +49,7 @@ func proofKind(st *proof.Statement) string {
 // words are rebuilt from numbers, outside for the rest.
 func wordsFrom(st *proof.Statement) func(string) *ops.Answer {
 	if st.Predicate.Calibration != nil || st.Predicate.Verdicts != nil ||
-		st.Predicate.Reconciliation != nil {
+		st.Predicate.Reconciliation != nil || st.Predicate.Adjudication != nil {
 		return ops.OursText
 	}
 	return ops.Outside
@@ -199,6 +200,19 @@ func readProof(src Source) func(ops.Call) (*ops.Answer, error) {
 				With("closures", ops.Ours(k.Closures)).With("false_closures", ops.Ours(k.FalseClosures)).
 				With("false_closure_upper", ops.Ours(k.Upper)).With("expires", ops.Ours(k.Expires)).
 				With("template_sha256", ops.Ours(k.Template)))
+		case p.Adjudication != nil:
+			v := p.Adjudication
+			bound := func(b proof.Bound) *ops.Answer {
+				return ops.Object().With("k", ops.Ours(b.K)).With("n", ops.Ours(b.N)).
+					With("lower", ops.Ours(b.Lower)).With("upper", ops.Ours(b.Upper))
+			}
+			row.With("evidence", ops.Object().With("source", ops.Ours(v.Source)).
+				With("sample", ops.Ours(v.Sample)).With("committed_at_entry", ops.Ours(int(v.Committed.Seq))).
+				With("tolerance", ops.Ours(v.Tolerance)).
+				With("ai_false_closures", bound(v.AI)).With("human_false_closures", bound(v.Human)).
+				With("population_ai", ops.Ours(v.PopulationAI)).
+				With("population_human", ops.Ours(v.PopulationHuman)).
+				With("reviewers", ops.Ours(v.Reviewers)).With("earlier_draws", ops.Ours(v.EarlierDraws)))
 		case p.Reconciliation != nil:
 			v := p.Reconciliation
 			row.With("evidence", ops.Object().With("agent", ops.Ours(v.Agent)).

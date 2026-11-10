@@ -1,0 +1,24 @@
+{{template "head" .}}
+<h1>Adjudication</h1>
+{{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}
+{{if .Error}}<p class="notice bad" role="alert">{{.Error}}</p>{{end}}
+<p class="lead">Closures judged again, blind. A sample is drawn at random from what a
+  product's AI closed and what people closed, and committed to the audit log before
+  anybody looks. Each item is shown with its evidence and nothing that says who closed
+  it or how. The share judged real is each side's false-closure rate.</p>
+{{if .Rows}}<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Sample</th><th scope="col">Product</th><th scope="col">Closures from</th><th scope="col">Judged</th><th scope="col"><span class="visually-hidden">Review</span></th></tr></thead>
+  <tbody>{{range .Rows}}<tr>
+    {{if .Broken}}<th scope="row"><code>{{.ID}}</code></th><td colspan="4"><span class="wf-word critical">cannot be read</span> {{.Broken}}</td>
+    {{else}}<th scope="row"><code>{{.ID}}</code></th>
+    <td>{{.Source}}</td>
+    <td>{{.Since}} to {{.Until}}<br><span class="hint">{{.AI}} from the AI, {{.Human}} from people</span></td>
+    <td>{{.Judged}} of {{.Items}}{{if .Done}} <span class="wf-word good">complete</span>{{end}}</td>
+    <td>{{if not .Done}}<a href="/proving/adjudication/{{.ID}}">Review</a>{{end}}</td>{{end}}
+  </tr>{{end}}</tbody></table></div>
+<p class="hint">A complete review is signed with <code>aertun adjudicate prove SAMPLE --tolerance R --key KEY</code>,
+  and the proof is kept with the others.</p>
+{{else}}<p>No samples are drawn. <code>aertun adjudicate size --rate 0.01</code> says how many
+  closures a target needs, and <code>aertun adjudicate draw --source NAME --since DATE --per N</code>
+  draws and commits a sample.</p>{{end}}
+{{template "foot" .}}

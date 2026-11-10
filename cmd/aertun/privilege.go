@@ -195,9 +195,15 @@ var commandNeeds = map[string]need{
 	// measurement of a product in the organisation's name, so the command
 	// itself asks for tune before it reads anything, as calibrating does;
 	// the row may only narrow its parent.
-	"verdict":       {action: auth.ActTriage},
-	"verdict list":  {action: auth.ActView},
-	"verdict prove": {action: auth.ActTriage},
+	// Blind review: drawing a sample and proving one sign a measurement in
+	// the organisation's name and ask for tune themselves; judging is a
+	// reviewer's work, and asking how big a sample must be is arithmetic.
+	"adjudicate":      {action: auth.ActTriage},
+	"adjudicate list": {action: auth.ActView},
+	"adjudicate size": {action: ""},
+	"verdict":         {action: auth.ActTriage},
+	"verdict list":    {action: auth.ActView},
+	"verdict prove":   {action: auth.ActTriage},
 	// The benchmark measures the analyst and, against a real model, spends
 	// the model budget to do it: the same weight as the analyst's own eval.
 	// Rendering a document somebody already has is only reading.

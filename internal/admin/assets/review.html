@@ -1,0 +1,34 @@
+{{template "head" .}}
+<p><a href="/proving/adjudication">Adjudication</a></p>
+<h1>Review, sample <code>{{.Sample}}</code></h1>
+{{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}
+{{if .Error}}<p class="notice bad" role="alert">{{.Error}}</p>{{end}}
+{{with .Item}}
+<p class="lead">Item {{.N}} of {{$.Items}}, {{$.Remaining}} left. Judge it from what is here:
+  who closed it, how, and what any AI said are deliberately not shown.</p>
+<table><tbody>
+  <tr><th scope="row">Raised as</th><td>{{template "fact" .Title}}</td></tr>
+  <tr><th scope="row">About</th><td>{{template "fact" .Entity}}</td></tr>
+  <tr><th scope="row">Rule</th><td><code>{{.Rule}}</code>, severity {{.Severity}}, seen {{.Seen}} time(s)</td></tr>
+</tbody></table>
+{{if .Evidence}}<h2>Evidence</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th scope="col">When</th><th scope="col">From</th><th scope="col">What</th></tr></thead>
+  <tbody>{{range .Evidence}}<tr><td>{{.At}}</td><td><code>{{.From}}</code></td><td>{{template "fact" .What}}</td></tr>{{end}}</tbody></table></div>{{end}}
+<h2>Your judgement</h2>
+<form method="post" action="/proving/adjudication/judge">
+  <input type="hidden" name="sample" value="{{$.Sample}}"><input type="hidden" name="item" value="{{.N}}">
+  <fieldset><legend>This was</legend>
+    <p><label><input type="radio" name="judgement" value="real" required> real: it needed acting on</label></p>
+    <p><label><input type="radio" name="judgement" value="false-positive"> a false positive: the rule fired on something it should not have</label></p>
+    <p><label><input type="radio" name="judgement" value="benign"> benign: it happened, and was fine</label></p>
+  </fieldset>
+  <p><label>Why <input type="text" name="because" required maxlength="500"></label>
+    <span class="hint">Whoever checks the review reads it. It is kept in the audit log and never in the proof.</span></p>
+  <p><button type="submit">Judge, and show the next</button></p>
+</form>
+<p class="hint">A judgement is final: each item is judged once, so an answer nobody liked cannot be replaced.</p>
+{{else}}
+<p>Nothing left in this sample for you to judge{{if ne .Skipped "0"}}: the {{.Skipped}} item(s) left are ones you closed, which somebody else must judge{{end}}.</p>
+{{end}}
+{{template "foot" .}}

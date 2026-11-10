@@ -228,6 +228,13 @@ var coverage = map[string]surfaces{
 			"thing under test choosing its test; the replay itself is served " +
 			"over MCP, by aertun mcp --twin",
 	},
+	// Closures judged again blind, on a sample committed first.
+	"adjudicate": {GUI: "/proving/adjudication",
+		NoMCP: "judging a closure blind is a person's judgement by design, and an " +
+			"agent shown the queue would be an agent choosing evidence for the " +
+			"measurement of agents; drawing and proving sign with a key file " +
+			"named on the command line"},
+
 	// Another vendor's AI verdicts, scored against people's decisions.
 	"verdict": {
 		Why: "a verdicts proof is a signed file taken where it is used and " +
