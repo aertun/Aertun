@@ -19,8 +19,10 @@ import (
 )
 
 // The wind tunnel: scripted malicious-agent sessions spliced into a recorded
-// stream, measured by whether the reference pack caught them, and written up
-// as a sealed, dual-signed scorecard. It attests test results, never
+// stream, measured by whether the organisation's own Sigma rules caught
+// them (`run --sigma DIR`, the primary mode) or, as a self-graded regression
+// test, whether the shipped reference pack did — and written up as a sealed
+// scorecard, dual-signed when it runs in CI. It attests test results, never
 // production actions.
 //
 // # The shape this command inherits from the bench command
@@ -190,20 +192,32 @@ func windtunnelRun(args []string) error {
 	seed := fs.Int64("seed", 7, "the seed the arrival-delay draws come "+
 		"from; the same base stream, scenarios and seed splice to the "+
 		"same bytes")
-	score := fs.String("score", "", "the scoring mode: reference (the "+
-		"default) — this program's own pack as the calibrated instrument; "+
-		"or their-sigma:DIR — the organisation's own Sigma rules in DIR, "+
-		"imported through the same importer as sigma import, replayed "+
-		"under this engine and joined at technique level (the --sigma "+
-		"flag is the same thing). their-alerts:FILE arrives in phase 2")
-	sigmaDir := fs.String("sigma", "", "score the organisation's own Sigma "+
-		"rules: DIR of .yml/.yaml files. The same mode as --score "+
-		"their-sigma:DIR — the rules the org already wrote, replayed and "+
-		"joined at technique level, with import refusals counted on the "+
-		"scorecard rather than dropped")
+	score := fs.String("score", "", "the scoring mode: their-sigma:DIR — "+
+		"the primary mode, the same as --sigma DIR; or reference — the "+
+		"shipped pack, the secondary mode and self-graded, because the "+
+		"scenarios were written beside its rules: a regression test of the "+
+		"pack, not a measurement of anybody's controls, and every result "+
+		"it prints says so. Reference is what runs when no instrument is "+
+		"named. their-alerts:FILE arrives in phase 2")
+	sigmaDir := fs.String("sigma", "", "the primary mode: score your own "+
+		"Sigma rules, a DIR of .yml/.yaml files, against scenarios that "+
+		"were not written to them — imported through the same importer as "+
+		"sigma import, replayed under this engine and joined at technique "+
+		"level, with import refusals counted on the scorecard rather than "+
+		"dropped")
 	key := fs.String("key", "", "a dual key file to sign the scorecard with "+
-		"(both algorithms, in the wind tunnel's own context); without it "+
-		"the document is written unsigned and says so")
+		"(both algorithms, in the wind tunnel's own context). Signing is "+
+		"refused unless the environment says it is CI (CI=true, which "+
+		"GitHub Actions and GitLab CI set themselves): the key belongs in "+
+		"a CI secret, not on a laptop. Without it the document is written "+
+		"unsigned and says so")
+	mutate := fs.Int("mutate", 0, "also replay N respellings of each "+
+		"scenario's session (at most 64) and report the miss rate under "+
+		"mutation as k of n with Wilson bounds. Only fields the attacker "+
+		"spells are respelled — URLs, paths an agent passes to a tool, "+
+		"shell command lines — and only by equivalences their consumer "+
+		"applies, deterministically from the scenario id and variant "+
+		"number")
 	publicKey := fs.String("public-key", "", "with --key, where to write "+
 		"the public half for the verifiers you hand the scorecard to")
 	out := fs.String("out", "", "write the scorecard document to FILE")
@@ -239,8 +253,13 @@ func windtunnelRun(args []string) error {
 		}
 	}
 	opts := windtunnel.RunOptions{Scenarios: ids, Base: *over, Into: *into,
-		Seed: *seed, ScoreMode: *score, Now: time.Now().UTC()}
+		Seed: *seed, ScoreMode: *score, Mutate: *mutate,
+		Now: time.Now().UTC()}
 	if *key != "" {
+		// Before the key file is opened: refused signing never reads it.
+		if err := windtunnelMaySign(os.Getenv); err != nil {
+			return err
+		}
 		k, err := pack.LoadKey(*key)
 		if err != nil {
 			return err
@@ -311,6 +330,33 @@ func windtunnelRun(args []string) error {
 			*publicKey, reset)
 	}
 	return nil
+}
+
+// windtunnelMaySign is the refusal that keeps scorecard signing in CI.
+//
+// A signature on a scorecard says a run happened the way a public workflow
+// describes, from the committed corpus, the committed engine and the
+// committed rules, with a key whose only home is that workflow's secret
+// store. A key on a laptop signs whatever the laptop ran — an edited
+// scenario, a doctored pack — and the document would carry the same
+// signature as an honest one. So the command signs only where the
+// environment says it is CI: CI=true, which GitHub Actions and GitLab CI
+// set on every job. It is a guard against signing by habit, not a lock —
+// anyone can set a variable — and the lock is that the key lives nowhere
+// but the secret.
+func windtunnelMaySign(getenv func(string) string) error {
+	if getenv("CI") == "true" {
+		return nil
+	}
+	return fmt.Errorf("refused: --key signs the scorecard, and scorecards " +
+		"are signed only in CI. A signature says the run came from the " +
+		"committed corpus, engine and rules in a workflow anyone can read, " +
+		"with a key that lives only in that workflow's secret; signed on a " +
+		"laptop it would attest whatever the laptop ran. This environment " +
+		"does not say it is CI (CI is not \"true\"; GitHub Actions and " +
+		"GitLab CI set it on every job). Run without --key for an unsigned " +
+		"scorecard, which says it is unsigned, or let the CI job sign it " +
+		"(.github/workflows/ci.yml has one)")
 }
 
 // windtunnelPurpleScreen renders the loop's ledger under the scorecard it
@@ -501,12 +547,24 @@ func windtunnelVerify(args []string) error {
 	if err := windtunnel.VerifyScorecard(&card, *card.Signature, pub); err != nil {
 		return fmt.Errorf("%s: %w", fs.Arg(0), err)
 	}
+	// From the mode, not the field: a version 1 document predates the
+	// sealed field, and Verify has held a version 2 one to its mode.
+	standing := card.ModeStanding()
 	if w.JSON(map[string]any{"verified": card.SHA256,
-		"key": card.Signature.KeyID}) {
+		"key": card.Signature.KeyID, "schema": card.Schema,
+		"score_mode": card.ScoreMode, "standing": standing}) {
 		return nil
 	}
 	w.Human("verified: both signatures hold, in context %s, by key %s; "+
-		"document sha256 %s…\n", windtunnel.ScorecardContext,
-		card.Signature.KeyID, card.SHA256[:12])
+		"document sha256 %s…, schema %s\n", windtunnel.ScorecardContext,
+		card.Signature.KeyID, card.SHA256[:12], card.Schema)
+	if standing == windtunnel.StandingSelfGraded {
+		w.Human("  scoring %s: the secondary mode, self-graded — the "+
+			"signature proves what ran, not that the pack it graded was "+
+			"graded by anyone else\n", card.ScoreMode)
+	} else {
+		w.Human("  scoring %s: the primary mode, the organisation's own "+
+			"rules\n", card.ScoreMode)
+	}
 	return nil
 }

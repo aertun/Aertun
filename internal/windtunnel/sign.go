@@ -32,6 +32,12 @@ import (
 // ScorecardContext is the domain every windtunnel-scorecard signature is
 // made and checked in. Versioned, so a change to what gets signed cannot be
 // confused with the thing it replaced.
+//
+// It names the signing domain and the message's construction (context,
+// NUL, canonical bytes), which version 2 of the document did not change:
+// the canonical bytes themselves carry the document's schema, so a version
+// 1 body and a version 2 body can never be the same signed message, and
+// each is verified only by the form its own schema names.
 const ScorecardContext = "aertun/windtunnel-scorecard/v1"
 
 // ScorecardSignature is both signatures over one sealed scorecard — the

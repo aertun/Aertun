@@ -99,7 +99,8 @@ Detecting and deciding
   aertun intel import FILE --source NAME | add VALUE --source NAME | list | remove ID
   aertun analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
   aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
-  aertun windtunnel list-scenarios | preflight | run [--sigma DIR] | scorecard | diff OLD NEW | verify   breach simulation by replay, scored and signed; diff is the CI gate
+  aertun windtunnel run --sigma DIR [--mutate N] [--out F]   replay agent attacks against your own Sigma rules: the primary mode
+  aertun windtunnel run --score reference | list-scenarios | preflight | scorecard | diff OLD NEW | verify   the shipped pack, self-graded; signed only in CI; diff is the CI gate
   aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
   aertun automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   aertun automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN

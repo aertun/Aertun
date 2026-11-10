@@ -44,3 +44,64 @@ jobs:
         run: go test -count=1 ./...
       - name: The image must build and stay static
         run: docker build -t aertun:ci .
+
+  # The wind tunnel's scorecard, signed here and nowhere else.
+  #
+  # `aertun windtunnel run --key` refuses to sign unless CI=true, which
+  # GitHub Actions sets on every job: a signature says the run came from the
+  # committed corpus, engine and rules in a workflow anyone can read, with a
+  # key whose only home is this repository's SCORECARD_SIGNING_KEY secret
+  # (a dedicated dual key in the format `windtunnel run --key` loads; see
+  # scorecard.yml for the key story and rotation).
+  #
+  # The run is reference mode: the only rules this repository holds are its
+  # own pack, so the card is the self-graded regression check and says so
+  # on every line that shows a result. It is verified and not published;
+  # the weekly scorecard workflow is what publishes.
+  windtunnel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build the engine
+        run: go build -o bin/aertun ./cmd/aertun
+      # The secret reaches this step only on a push to main: a pull request
+      # runs code nobody has merged yet, and a card signed from it would
+      # carry the same signature as one from reviewed code. Forks never see
+      # secrets at all. Either way the key is empty here, signing is
+      # skipped, and the step says so instead of failing.
+      - name: Run the corpus; sign the card when the key is present
+        env:
+          KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.SCORECARD_SIGNING_KEY || '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/windtunnel"
+          card="$RUNNER_TEMP/windtunnel/scorecard.json"
+          if [ -z "$KEY" ]; then
+            echo "signing skipped: the SCORECARD_SIGNING_KEY secret is not available to this run (it is unset, or this is not a push to main); the scorecard below is unsigned and says so"
+            bin/aertun windtunnel run --score reference --seed 7 --mutate 8 --out "$card"
+            echo "SIGNED=no" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$KEY" > "$RUNNER_TEMP/windtunnel/signing.key"
+          bin/aertun windtunnel run --score reference --seed 7 --mutate 8 \
+            --key "$RUNNER_TEMP/windtunnel/signing.key" \
+            --public-key "$RUNNER_TEMP/windtunnel/public-key.json" \
+            --out "$card"
+          rm -f "$RUNNER_TEMP/windtunnel/signing.key"
+          echo "SIGNED=yes" >> "$GITHUB_ENV"
+      # Offline verification, the way a stranger does it: the card and the
+      # public key committed on main, and nothing from this run. A card the
+      # committed key does not verify means the secret was rotated without
+      # the commit that publishes its public half, and the job fails.
+      - name: Verify the signed card offline against the committed key
+        run: |
+          if [ "$SIGNED" != yes ]; then
+            echo "verification skipped: the card is unsigned, so there is no signature to check"
+            bin/aertun windtunnel scorecard "$RUNNER_TEMP/windtunnel/scorecard.json" > /dev/null
+            exit 0
+          fi
+          bin/aertun windtunnel verify --key scorecards/public-key.json \
+            "$RUNNER_TEMP/windtunnel/scorecard.json"

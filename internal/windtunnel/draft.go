@@ -784,7 +784,10 @@ func replayCounts(card *Scorecard, derived map[string]*derivation) (
 	}
 	var dirs []string
 	for _, e := range entries {
-		if e.IsDir() {
+		// The variants a run under mutation wrote are respellings of
+		// sessions whose own spools are already here; replaying a draft
+		// over them would count one session as many.
+		if e.IsDir() && e.Name() != mutantsDir {
 			dirs = append(dirs, e.Name())
 		}
 	}
