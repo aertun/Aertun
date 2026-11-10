@@ -359,9 +359,13 @@ var commandNeeds = map[string]need{
 	// at 3am is the one holding the pager, and "wait for an admin" is how a
 	// misbehaving agent earns its keep: registration is grant, suspension
 	// is respond.
-	"agent":         {action: auth.ActGrant},
-	"agent list":    {action: auth.ActView},
-	"agent disable": {action: auth.ActRespond},
+	"agent":      {action: auth.ActGrant},
+	"agent list": {action: auth.ActView},
+	// Reconciling reads an agent's telemetry and its calls and signs an
+	// account of it in the organisation's name: the command asks for tune
+	// itself before it reads anything, as the other signed proofs do.
+	"agent reconcile": {action: auth.ActTriage},
+	"agent disable":   {action: auth.ActRespond},
 	// The consent register's read-and-end surface, and the responder's
 	// rung for both halves: revoking a consent is the delegation kill —
 	// the same rung `agent disable` holds, for the same 3am reason — and

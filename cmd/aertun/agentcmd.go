@@ -61,7 +61,8 @@ func agentUsage() error {
 		"allow NAME (--add | --remove) TOOL[,TOOL] | maps NAME --host HOST [--remove] | " +
 		"token NAME --tools TOOL[,TOOL] --for-run ID " +
 		"[--hours N] [--purpose observe|triage] [--calls N] [--level N] | disable NAME --why \"…\" | " +
-		"enable NAME --why \"…\" | consents [revoke ID] | help")
+		"enable NAME --why \"…\" | consents [revoke ID] | " +
+		"reconcile NAME --since DATE --key F [--telemetry ID] [--window 2m] | help")
 }
 
 // cmdAgent manages the agent register.
@@ -101,6 +102,8 @@ func cmdAgent(root string, args []string) error {
 		return agentEnable(root, caller, args[1:], note)
 	case "consents":
 		return agentConsents(root, caller, args[1:], note)
+	case "reconcile":
+		return agentReconcile(root, caller, args[1:])
 	}
 	return agentUsage()
 }

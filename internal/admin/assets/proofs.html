@@ -34,8 +34,8 @@
 <p class="hint">{{len .Rows}} of {{.Kept}} shown, newest first. A proof says the key
   signed it; whether that key is one to believe is yours to judge, by its fingerprint.</p>
 {{else}}{{if .Kept}}<p>No proof of that kind is kept.</p>{{else}}
-<p>No proofs are kept yet. <code>aertun verdict prove</code> and
-  <code>aertun analyst calibrate</code> keep the proofs they make; a proof made
+<p>No proofs are kept yet. <code>aertun verdict prove</code>,
+  <code>aertun analyst calibrate</code> and <code>aertun agent reconcile</code> keep the proofs they make; a proof made
   elsewhere is kept below or with <code>aertun proof keep FILE --public-key KEY</code>.</p>{{end}}{{end}}
 
 <h2>Keep a proof made elsewhere</h2>

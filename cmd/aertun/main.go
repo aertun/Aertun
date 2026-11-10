@@ -155,7 +155,7 @@ People, sign-in and changes
   aertun saml add | list | show | metadata | presets | remove   sign in with a SAML provider
   aertun scim status | token | map GROUP ROLE|JOB | unmap GROUP   provisioning from your identity provider
   aertun token issue NAME --principal WHO | exchange | keygen FILE | proof | list | revoke ID | stale
-  aertun agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | maps NAME --host HOST | disable NAME --why "…" | enable NAME --why "…" | token NAME --tools TOOL[,TOOL] --for-run ID | consents [revoke ID] | help
+  aertun agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | maps NAME --host HOST | disable NAME --why "…" | enable NAME --why "…" | token NAME --tools TOOL[,TOOL] --for-run ID | consents [revoke ID] | reconcile NAME --since DATE --key F | help
                                         the register of AI agents: who runs, what each may call, where each runs, one kill switch each, what was consented to
   aertun ssf receivers | key | send NAME --why "…" | help
                                         where the kill switch is announced: receivers hearing session-revoked
