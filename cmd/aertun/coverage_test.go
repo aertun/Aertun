@@ -215,6 +215,19 @@ var coverage = map[string]surfaces{
 			"caller's behalf; agents will submit claims to a queue the " +
 			"store's own key signs from, with the claim's author recorded",
 	},
+	// The context twin's recorder: the agent interface's answers, as of
+	// now, in one file under its digest.
+	"twin": {
+		Why: "a recorded case is a file handed to whatever replays an " +
+			"investigation — an evaluation harness, a reviewer — and read " +
+			"through aertun mcp --twin; there is nothing in it to look at " +
+			"that the findings, cases and vulnerability screens do not " +
+			"already show live",
+		NoMCP: "recording decides what a replay contains, and an agent " +
+			"choosing the evidence it will later be measured against is the " +
+			"thing under test choosing its test; the replay itself is served " +
+			"over MCP, by aertun mcp --twin",
+	},
 	"action": {GUI: "/security/cases",
 		Why: "an action is asked for and approved on the incident's page; " +
 			"installing one and giving it a credential are the operator's",

@@ -160,6 +160,13 @@ evidence. Agents cannot change who may do what, approve an action or a
 privileged change, or reach another platform. Every call is recorded, and what
 models did reaches the same detection engine as every other platform's events.
 
+To put the same investigation to an agent twice, `aertun twin record --out
+FILE` writes what those operations would answer now to one file under its
+sha256 digest, and `aertun mcp --twin FILE` answers from that file alone: the
+same bytes every time, every value labelled with whether an attacker could have
+written it, proposals refused, and a file that no longer matches its digest
+refused outright.
+
 ## Integrations
 
 **Connectors** (read through each tool's API, credentials kept in Aertun's
