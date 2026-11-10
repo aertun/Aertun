@@ -18,7 +18,6 @@ import (
 	"github.com/aertun/aertun/internal/detect"
 	"github.com/aertun/aertun/internal/pack"
 	"github.com/aertun/aertun/internal/proof"
-	"github.com/aertun/aertun/internal/proving"
 )
 
 // Proofs: a claim about security work, checked by a program, signed.
@@ -47,11 +46,11 @@ func cmdProof(root string, args []string) error {
 	case "verify":
 		return proofVerify(args[1:])
 	case "list":
-		return runOpCommand(root, proving.Ops(root), "list_proofs", args[1:], humanProofs)
+		return runOpCommand(root, provingRegistry(root), "list_proofs", args[1:], humanProofs)
 	case "show":
-		return runOpCommand(root, proving.Ops(root), "read_proof", args[1:], humanProof)
+		return runOpCommand(root, provingRegistry(root), "read_proof", args[1:], humanProof)
 	case "keep":
-		return runOpCommand(root, proving.Ops(root), "keep_proof", args[1:], func(a *answer) string {
+		return runOpCommand(root, provingRegistry(root), "keep_proof", args[1:], func(a *answer) string {
 			if a.Get("already_kept").Value() == true {
 				return "already kept, as " + a.Get("id").Text()
 			}
@@ -214,6 +213,8 @@ func summary(st *proof.Statement) map[string]any {
 		out["verdicts"] = st.Predicate.Verdicts
 	case st.Predicate.Reconciliation != nil:
 		out["reconciliation"] = st.Predicate.Reconciliation
+	case st.Predicate.Adjudication != nil:
+		out["adjudication"] = st.Predicate.Adjudication
 	}
 	return out
 }
@@ -246,6 +247,12 @@ func describe(st *proof.Statement) string {
 			c.Delta, c.Candidates, c.Cases, c.Real)
 		fmt.Fprintf(&b, "  binds model %s, template %s…, family %s; expires %s",
 			c.Model, c.Template[:12], c.Family, c.Expires)
+	}
+	if v := p.Adjudication; v != nil {
+		fmt.Fprintf(&b, "  evidence: blind sample %s, committed at audit entry %d: the AI's closures %d of %d "+
+			"judged real (%.4f to %.4f) against %g; people's %d of %d; %d reviewer(s)",
+			v.Sample, v.Committed.Seq, v.AI.K, v.AI.N, v.AI.Lower, v.AI.Upper, v.Tolerance,
+			v.Human.K, v.Human.N, v.Reviewers)
 	}
 	if v := p.Reconciliation; v != nil {
 		fmt.Fprintf(&b, "  evidence: %d call(s) answered, %d in its account, %d unreported, %d claimed "+

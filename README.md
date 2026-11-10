@@ -117,6 +117,22 @@ is the submitter's — and the console marks it where the agent interface labels
 it. A kept proof is verified again whenever it is read, so one edited
 afterwards shows as no longer verifying.
 
+**Closures judged again, blind.** Comparing a vendor's AI with the analysts
+measures agreement, and people re-examine only what looked wrong. `aertun
+adjudicate draw --source NAME --since DATE --per N` draws a random sample from
+every closure the product's AI made in the period, reviewed or not, and from
+every closure people made, writes it to the store and commits its seed and
+digests to the signed audit log before any item is shown (`adjudicate size
+--rate 0.01` says how many a target needs: 299 with none judged real for 1% at
+95%). The console's **Adjudication** screen, or `adjudicate next` and `judge`,
+shows each item with its evidence and nothing that says who closed it, how,
+or which stratum it came from; nobody who closed an item may judge it, each is
+judged once, agents may not see the queue, and a judgement is a record in the
+log, never a decision on the finding, so a product that learns from analysts
+cannot learn the answers. `adjudicate prove SAMPLE --tolerance R --key F`
+signs the unbiased false-closure rate of the AI against the tolerance, with
+the people's rate beside it.
+
 **Does an agent do what it says it did?** `aertun agent reconcile NAME --since
 DATE --key F` holds a registered agent's own account — the tool calls its
 GenAI telemetry reported over OTLP, under the identity `--telemetry` declares

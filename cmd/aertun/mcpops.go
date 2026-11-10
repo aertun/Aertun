@@ -55,7 +55,7 @@ func roleFor(a auth.Action) (string, bool) {
 // mcpOperation is how an operation is described to an agent, the same on the
 // agent interface and the twin; false for one this interface does not offer.
 func mcpOperation(op ops.Op) (mcp.Operation, bool) {
-	if op.Effect == ops.Change {
+	if op.Effect == ops.Change || op.PeopleOnly {
 		return mcp.Operation{}, false
 	}
 	role, ok := roleFor(op.Needs)

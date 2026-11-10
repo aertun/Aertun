@@ -49,6 +49,8 @@ func registry(ran *int) *Registry {
 		Audit: "thing.kept", Args: []Arg{{Name: "note", Kind: Text}}, Run: run})
 	r.Add(Op{Name: "suggest", Summary: "proposes", Needs: auth.ActTriage, Area: "/security", Effect: Propose,
 		Audit: "thing.proposed", Run: run})
+	r.Add(Op{Name: "review", Summary: "a person's read", Needs: auth.ActTriage, Area: "/security",
+		Effect: Read, PeopleOnly: true, Run: run})
 	return r
 }
 
@@ -85,6 +87,14 @@ func TestAnAgentNeverMakesAChange(t *testing.T) {
 	}
 	if _, err := r.Invoke("look", agent, map[string]string{"id": "x"}, time.Now()); err != nil {
 		t.Errorf("an agent's read: %v", err)
+	}
+	// A read only a person may make is refused to an agent, and not to a
+	// person.
+	if _, err := r.Invoke("review", agent, nil, time.Now()); !IsRefusal(err) {
+		t.Errorf("an agent ran a person's read: %v", err)
+	}
+	if _, err := r.Invoke("review", &stub{}, nil, time.Now()); err != nil {
+		t.Errorf("a person's read: %v", err)
 	}
 }
 

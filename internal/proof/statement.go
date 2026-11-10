@@ -129,6 +129,9 @@ type Predicate struct {
 	// Reconciliation is set on a reconciliation proof: an agent's own
 	// account held against what was seen without it.
 	Reconciliation *ReconciliationEvidence `json:"reconciliation,omitempty"`
+	// Adjudication is set on an adjudication proof: closures judged again,
+	// blind, on a sample committed first.
+	Adjudication *AdjudicationEvidence `json:"adjudication,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -250,7 +253,7 @@ func (s *Statement) validateEvidence() error {
 	p := s.Predicate
 	kinds := 0
 	for _, set := range []bool{p.Detection != nil, p.Calibration != nil, p.Verdicts != nil,
-		p.Reconciliation != nil} {
+		p.Reconciliation != nil, p.Adjudication != nil} {
 		if set {
 			kinds++
 		}
@@ -276,6 +279,11 @@ func (s *Statement) validateEvidence() error {
 			return fmt.Errorf("a reconciliation proof carries reconciliation evidence and no other")
 		}
 		return p.Reconciliation.validate(s)
+	case PredicateAdjudication:
+		if p.Adjudication == nil || kinds != 1 {
+			return fmt.Errorf("an adjudication proof carries adjudication evidence and no other")
+		}
+		return p.Adjudication.validate(s)
 	default:
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}

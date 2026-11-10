@@ -153,6 +153,10 @@ type Op struct {
 	Effect Effect
 	Audit  string
 	Args   []Arg
+	// PeopleOnly is an operation only a person may run, whatever it changes:
+	// judging closures blind is a person's judgement by design, so an agent
+	// is refused even the reading that leads to it.
+	PeopleOnly bool
 	// Keywords are what an agent searching for it might say.
 	Keywords []string
 	// CLI is where it sits on the command line, such as "proof list", when
@@ -261,6 +265,9 @@ func (r *Registry) Invoke(name string, c Caller, raw map[string]string, now time
 	if op.Effect == Change && c.Agent() {
 		return nil, &Refusal{Reason: op.Name + " changes what is stored, and an agent " +
 			"may propose a change but never make one"}
+	}
+	if op.PeopleOnly && c.Agent() {
+		return nil, &Refusal{Reason: op.Name + " is a person's to do, and an agent is not one"}
 	}
 	if err := c.Allowed(op.Needs, op.Area); err != nil {
 		return nil, &Refusal{Reason: err.Error()}
