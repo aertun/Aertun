@@ -1,0 +1,18 @@
+title: Agent posted to the known exfiltration hook
+id: their.naive-exfil-hook
+status: test
+description: "A rule an organisation writes after an incident: the exact destination string it saw, matched as written. It catches that spelling and is the shape mutation mode exists to test."
+author: their-soc
+date: 2026-11-07
+logsource:
+    product: otel
+    service: genai
+detection:
+    selection:
+        dest: https://canary.example.internal/hook
+    condition: selection
+falsepositives:
+    - None expected; the destination is a canary
+level: high
+tags:
+    - attack.t1041

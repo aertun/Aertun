@@ -191,6 +191,9 @@ func TestWindtunnelVerifyIsOfflineStoreFreeAndRefusesForgeries(t *testing.T) {
 	if err := pack.SaveKey(keyPath, k, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// Signing happens only where the environment says it is CI; this test
+	// is the CI job's path, so it says so (the refusal has its own test).
+	t.Setenv("CI", "true")
 
 	card := filepath.Join(work, "scorecard.json")
 	pub := filepath.Join(work, "scorecard-pub.json")

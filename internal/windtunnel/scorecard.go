@@ -5,12 +5,15 @@
 package windtunnel
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/aertun/aertun/internal/jcs"
 )
 
 // The scorecard: the document a run writes, seals, and (when a key was
@@ -22,14 +25,74 @@ import (
 // carries what the results document honestly says it lacks: dual signatures
 // on day one, in this package's own context (decision 7).
 const (
-	// DocSchema is the document's versioned schema name. A document from
-	// another schema is refused rather than best-effort rendered.
-	DocSchema = "aertun/windtunnel-scorecard/v1"
+	// DocSchema is the schema a run writes. Version 2 digests and signs the
+	// document's RFC 8785 canonical form (internal/jcs), so a verifier in
+	// any language with a conforming canonicaliser recomputes the signed
+	// bytes from the data, rather than having to be this build's encoder
+	// with this build's field order. A document from a schema this build
+	// does not know is refused rather than best-effort rendered.
+	DocSchema = "aertun/windtunnel-scorecard/v2"
+	// DocSchemaV1 is the schema earlier builds wrote, whose digest covers
+	// encoding/json's compact output in declaration order. This build
+	// still verifies it — the published history and the committed seed
+	// card are version 1, and a signature that stopped verifying when the
+	// verifier upgraded would be a history nobody can check — and never
+	// writes it.
+	DocSchemaV1 = "aertun/windtunnel-scorecard/v1"
 	// Engine is the wind tunnel engine's own version: bumped when the
 	// splicing or scoring semantics change, because a scorecard's numbers
 	// are only comparable against the engine that produced them.
 	Engine = "windtunnel-1"
 )
+
+// The standing of a scoring mode: which question its numbers answer.
+//
+// Their rules are the primary mode, because a scenario corpus written
+// without sight of an organisation's rules is a test of those rules. The
+// shipped reference pack is the secondary mode and is self-graded: the
+// scenarios were written beside its rules, so a reference run is a
+// regression test of the pack, not a measurement of anybody's controls,
+// and every screen that shows its result says so.
+const (
+	StandingPrimary    = "primary"
+	StandingSelfGraded = "secondary-self-graded"
+)
+
+// standingOf is a scoring mode's standing.
+func standingOf(scoreMode string) string {
+	if modeOf(scoreMode) == ModeReference {
+		return StandingSelfGraded
+	}
+	return StandingPrimary
+}
+
+// ModeStanding is the standing of the document's scoring mode, for a
+// version 1 document as for a version 2 one: it is derived from the mode,
+// which both versions seal.
+func (c *Scorecard) ModeStanding() string { return standingOf(c.ScoreMode) }
+
+// standingLine is a scoring mode's standing as a sentence a person reads
+// under the line that names the mode.
+func standingLine(scoreMode string) string {
+	if standingOf(scoreMode) == StandingSelfGraded {
+		return "the shipped reference pack — the secondary mode, and " +
+			"self-graded: the scenarios were written beside these rules, so " +
+			"this is a regression test of the pack, not a measurement of " +
+			"anybody's controls. Score your own rules with --sigma DIR, the " +
+			"primary mode"
+	}
+	return "your own rules — the primary mode: rules the scenarios were " +
+		"not written against, replayed under this engine"
+}
+
+// selfGradedMark follows every result line of a self-graded document, so
+// a number quoted from a reference run carries its standing with it.
+func selfGradedMark(scoreMode string) string {
+	if standingOf(scoreMode) == StandingSelfGraded {
+		return " [self-graded: secondary mode]"
+	}
+	return ""
+}
 
 // attributionCaveat is stated on every document, in the blind tradition: a
 // replay has no detection wall-clock, and the number that stands in for one
@@ -157,8 +220,12 @@ type Scorecard struct {
 	Mode      string `json:"mode"`
 	Engine    string `json:"engine"`
 	ScoreMode string `json:"score_mode"`
-	Corpus    string `json:"corpus"`
-	Seed      int64  `json:"seed"`
+	// Standing is the scoring mode's standing, sealed with the numbers so
+	// a reader of the file alone knows whether they are self-graded.
+	// Version 2 only; Verify holds it to the mode.
+	Standing string `json:"standing,omitempty"`
+	Corpus   string `json:"corpus"`
+	Seed     int64  `json:"seed"`
 
 	Base       string `json:"base"`
 	BaseDigest string `json:"base_digest"`
@@ -196,6 +263,11 @@ type Scorecard struct {
 	// finding from an estate finding.
 	AmbientFires int `json:"ambient_fires,omitempty"`
 
+	// Mutation is the run under mutation, when one was asked for: each
+	// scenario's session respelled and replayed again (mutate.go). Version
+	// 2 only.
+	Mutation *MutationReport `json:"mutation,omitempty"`
+
 	// Scratch names where the scratch spools were written, so an operator
 	// can inspect the exact streams that were scored.
 	Scratch     string    `json:"scratch"`
@@ -212,14 +284,66 @@ type Scorecard struct {
 }
 
 // digestBytes is the canonical form a digest is taken over and a signature
-// covers: the whole document, digest empty and signature absent, compact
-// JSON — deterministic by Go's encoder: fields in declaration order, no
-// insignificant whitespace. The receiver is not mutated, so verifying a
-// signed document does not strip its own signature.
+// covers: the whole document, digest empty and signature absent, in the
+// form its schema names. The receiver is not mutated, so verifying a signed
+// document does not strip its own signature.
 func (c *Scorecard) digestBytes() ([]byte, error) {
 	body := *c
 	body.SHA256 = ""
 	body.Signature = nil
+	switch c.Schema {
+	case DocSchema:
+		return canonicalBytes(&body)
+	case DocSchemaV1:
+		return legacyBytes(&body)
+	}
+	return nil, fmt.Errorf("the document's schema is %q; this build reads "+
+		"%q and %q", c.Schema, DocSchema, DocSchemaV1)
+}
+
+// canonicalBytes is version 2's form: the RFC 8785 canonical form of the
+// document's JSON.
+//
+// Then the round trip. RFC 8785 reads every number as a double, so an
+// integer wider than 53 bits — a seed, a count — would be signed as its
+// neighbour, and two documents that render different numbers would share
+// one digest and one signature. The canonical bytes are therefore decoded
+// back and must re-encode to exactly the document that went in; one that
+// does not is refused rather than sealed, and a document someone edited
+// into that shape is refused rather than verified.
+func canonicalBytes(body *Scorecard) ([]byte, error) {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	canon, err := jcs.Canonicalize(raw)
+	if err != nil {
+		return nil, err
+	}
+	var back Scorecard
+	if err := json.Unmarshal(canon, &back); err != nil {
+		return nil, err
+	}
+	again, err := json.Marshal(&back)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(raw, again) {
+		return nil, fmt.Errorf("the scorecard's canonical form does not " +
+			"decode to the document it came from: it carries a number a " +
+			"double cannot hold exactly (an integer wider than 53 bits — " +
+			"RFC 8785 section 3.1), which would be signed as a different " +
+			"number. Seeds and counts stay within ±9007199254740991")
+	}
+	return canon, nil
+}
+
+// legacyBytes is version 1's form, kept for verification only: compact
+// JSON from Go's encoder, fields in declaration order, HTML unescaped.
+// Every field version 2 added is omitempty and empty on a version 1
+// document (Verify refuses one that carries them), so this is byte for
+// byte what the builds that wrote version 1 digested.
+func legacyBytes(body *Scorecard) ([]byte, error) {
 	var buf strings.Builder
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
@@ -246,9 +370,29 @@ func (c *Scorecard) seal() error {
 // the check a rendered number can be traced by; the signature check is
 // VerifyScorecard's, and the verify entry point runs both.
 func (c *Scorecard) Verify() error {
-	if c.Schema != DocSchema {
-		return fmt.Errorf("the document's schema is %q; this build reads %q",
-			c.Schema, DocSchema)
+	switch c.Schema {
+	case DocSchema:
+		// The standing is sealed with the numbers, and it must be the
+		// mode's: a reference document relabelled primary would be a
+		// self-graded number wearing an independent one's name.
+		if c.Standing != standingOf(c.ScoreMode) {
+			return fmt.Errorf("the document scored %s and calls itself %q; "+
+				"that mode's standing is %q", c.ScoreMode, c.Standing,
+				standingOf(c.ScoreMode))
+		}
+	case DocSchemaV1:
+		// Version 1 had no standing and no mutation section. A version 1
+		// document carrying either was not written by a version 1 build,
+		// and its legacy digest would cover fields no version 1 signer
+		// ever saw.
+		if c.Standing != "" || c.Mutation != nil {
+			return fmt.Errorf("the document says it is %s and carries "+
+				"fields that schema never had; it was not written by a "+
+				"build that wrote %s", DocSchemaV1, DocSchemaV1)
+		}
+	default:
+		return fmt.Errorf("the document's schema is %q; this build reads "+
+			"%q and %q", c.Schema, DocSchema, DocSchemaV1)
 	}
 	b, err := c.digestBytes()
 	if err != nil {
@@ -297,6 +441,7 @@ func (c *Scorecard) Summarize() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "wind tunnel, mode %s, scoring %s, engine %s\n", c.Mode,
 		c.ScoreMode, c.Engine)
+	fmt.Fprintf(&b, "  scored by %s\n", wrap(standingLine(c.ScoreMode)))
 	fmt.Fprintf(&b, "  base stream %s (%d event(s), digest %s)\n", c.Base,
 		c.BaseEvents, shortDigest(c.BaseDigest))
 	fmt.Fprintf(&b, "  reference pack %s (digest %s), corpus %s, seed %d\n",
@@ -361,8 +506,9 @@ func (c *Scorecard) Summarize() string {
 	}
 	a := c.Aggregate
 	fmt.Fprintf(&b, "  missed %d of %d must-alert scenario(s) (%s, 95%% "+
-		"Wilson %.1f%% to %.1f%%)\n", a.Missed, a.MustAlert,
-		pct(a.MissRate), a.MissRateLow*100, a.MissRateHigh*100)
+		"Wilson %.1f%% to %.1f%%)%s\n", a.Missed, a.MustAlert,
+		pct(a.MissRate), a.MissRateLow*100, a.MissRateHigh*100,
+		selfGradedMark(c.ScoreMode))
 	fmt.Fprintf(&b, "  %d caught at alert, %d telemetry-only, %d "+
 		"wrongly-quiet; %d of the misses were lateness\n", a.Caught,
 		a.TelemetryOnly, a.WronglyQuiet, a.MissedLateness)
@@ -371,6 +517,9 @@ func (c *Scorecard) Summarize() string {
 	if c.AmbientFires > 0 {
 		fmt.Fprintf(&b, "  ambient: %d alert(s) on the base stream alone; "+
 			"every count above subtracts them\n", c.AmbientFires)
+	}
+	if c.Mutation != nil {
+		renderMutation(&b, c.Mutation, selfGradedMark(c.ScoreMode))
 	}
 	fmt.Fprintf(&b, "  families: ")
 	for i, f := range c.Families {
@@ -408,6 +557,48 @@ func (c *Scorecard) Summarize() string {
 		sig, shortDigest(c.SHA256),
 		c.GeneratedAt.Format(time.RFC3339), c.Scratch)
 	return b.String()
+}
+
+// renderMutation is the mutation section of the summary: what each
+// scenario's variants did, then the two rates as k of n with their bounds —
+// or, when no variant of a must-alert scenario could be made, the sentence
+// that says there is no rate rather than a 0% over nothing.
+func renderMutation(b *strings.Builder, m *MutationReport, mark string) {
+	fmt.Fprintf(b, "  under mutation, %d variant(s) asked for per scenario, "+
+		"respelling only what the attacker spells:\n", m.Requested)
+	for _, r := range m.Rows {
+		if r.Variants == 0 {
+			fmt.Fprintf(b, "    %-38s no variant (%s unmutated)\n",
+				r.Scenario, r.Original)
+		} else {
+			fmt.Fprintf(b, "    %-38s %s unmutated; %d variant(s): %d "+
+				"caught, %d missed", r.Scenario, r.Original, r.Variants,
+				r.Caught, r.Missed)
+			if r.TelemetryOnly > 0 || r.WronglyQuiet > 0 {
+				fmt.Fprintf(b, ", %d telemetry-only, %d wrongly-quiet",
+					r.TelemetryOnly, r.WronglyQuiet)
+			}
+			fmt.Fprintf(b, "\n        respelled %s; variants sha256 %s\n",
+				strings.Join(r.Surface, ", "), shortDigest(r.Digest))
+		}
+		if r.Note != "" {
+			fmt.Fprintf(b, "        %s\n", wrap(r.Note))
+		}
+	}
+	if x := m.MissUnderMutation; x != nil {
+		fmt.Fprintf(b, "  missed %d of %d variant(s) of must-alert "+
+			"scenarios (%s, 95%% Wilson %.1f%% to %.1f%%)%s\n", x.K, x.N,
+			pct(x.Rate), x.Low*100, x.High*100, mark)
+	} else {
+		fmt.Fprintf(b, "  no variant of a must-alert scenario could be "+
+			"made, so there is no miss rate under mutation to state\n")
+	}
+	if x := m.Evasion; x != nil {
+		fmt.Fprintf(b, "  of the variants of scenarios caught unmutated, %d "+
+			"of %d evaded (%s, 95%% Wilson %.1f%% to %.1f%%)%s\n", x.K, x.N,
+			pct(x.Rate), x.Low*100, x.High*100, mark)
+	}
+	fmt.Fprintf(b, "  mutation caveat: %s\n", wrap(m.Caveat))
 }
 
 // wrap breaks a long sentence for the terminal, the way the help wraps.

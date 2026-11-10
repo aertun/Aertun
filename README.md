@@ -106,21 +106,36 @@ it the same way.
 
 ## The wind tunnel
 
-`aertun windtunnel` replays scripted malicious-agent sessions — an
-injection through an issue, an MCP server's rug-pull, a
+`aertun windtunnel run --sigma DIR` replays scripted malicious-agent
+sessions — an injection through an issue, an MCP server's rug-pull, a
 read-then-exfiltrate chain, a slopsquatted install, a runaway cost loop, a
-blind window in the recorder — through a
-recorded telemetry stream in a scratch store, and measures whether the
-detections caught them. Each scenario is data, never code, and ships with a
-benign twin that must raise nothing. The scorecard names what ran before how
-it went (scenario digests, the stream's digest, the rule pack's version),
-reports the miss rate first with Wilson bounds, and is signed so a third
-party verifies it offline. `windtunnel diff` is the CI gate between two runs.
+blind window in the recorder — through a recorded telemetry stream in a
+scratch store, and measures whether your own Sigma rules caught them. Each
+scenario is data, never code, and ships with a benign twin that must raise
+nothing. The scorecard names what ran before how it went (scenario
+digests, the stream's digest, your rules' digest and what the importer
+refused), and reports the miss rate first as k of n with Wilson bounds.
+`windtunnel diff` is the CI gate between two runs.
 
-Six scenarios ship today, and the reference scorecard is scored against
-Aertun's own rule pack, whose rules the scenarios were written beside — it
-is a regression test of that pack, not an independent measurement.
-`--sigma DIR` scores your own Sigma rules instead.
+`--mutate N` replays N respellings of each session as well: the URLs,
+tool-call paths and shell command lines the attacker types, rewritten by
+equivalences their consumer applies (RFC 9110 URL normalisation, POSIX
+pathname resolution, POSIX shell quoting) — never letter case alone, and
+never a field the attacker does not spell. The scorecard adds the miss
+rate under mutation, k of n with Wilson bounds. Variants are deterministic:
+the same scenario and variant number give the same bytes.
+
+Run without `--sigma`, it scores Aertun's own rule pack instead. The six
+scenarios that ship were written beside those rules, so that result is
+self-graded — a regression test of the pack, not an independent
+measurement — and every screen and document that shows it says so.
+
+The scorecard's digest covers its RFC 8785 canonical form, so any
+conforming canonicaliser can recompute it. It is dual-signed (Ed25519 and
+ML-DSA-65) only in CI: `--key` is refused unless `CI=true`, and the
+repository's own CI job signs on pushes to main with a key held in a
+secret, skipping (and saying so) when the secret is absent. `aertun windtunnel verify --key
+PUBLIC-KEY CARD` checks a signed card offline.
 
 ## What it does
 

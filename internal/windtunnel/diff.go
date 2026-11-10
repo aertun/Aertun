@@ -117,7 +117,11 @@ type AmbientDrift struct {
 // DiffReport is the whole comparison: what ran on both sides, the
 // transitions sorted by scenario id, the counters a gate branches on.
 type DiffReport struct {
-	Schema      string         `json:"schema"`
+	Schema string `json:"schema"`
+	// Standing is the scoring mode's standing, which both sides share —
+	// a diff across modes is refused — so a gate over two self-graded
+	// documents says it is one.
+	Standing    string         `json:"standing"`
 	From        DiffSide       `json:"from"`
 	To          DiffSide       `json:"to"`
 	Scenarios   []ScenarioDiff `json:"scenarios"`
@@ -167,7 +171,7 @@ func Diff(fromLabel string, from *Scorecard, toLabel string,
 			to.Corpus)
 	}
 
-	rep := &DiffReport{Schema: DiffSchema,
+	rep := &DiffReport{Schema: DiffSchema, Standing: standingOf(to.ScoreMode),
 		From: diffSide(fromLabel, from), To: diffSide(toLabel, to)}
 
 	// The transitions, over the sorted union of scenario ids.
@@ -288,6 +292,7 @@ func (d *DiffReport) Summarize() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "wind tunnel diff, engine %s, scoring %s\n", d.From.Engine,
 		d.From.ScoreMode)
+	fmt.Fprintf(&b, "  scored by %s\n", wrap(standingLine(d.From.ScoreMode)))
 	for _, s := range []struct {
 		word string
 		side DiffSide
@@ -332,12 +337,12 @@ func (d *DiffReport) Summarize() string {
 	}
 	fmt.Fprintf(&b, "  aggregate: missed %d of %d (%s, 95%% Wilson %.1f%% "+
 		"to %.1f%%) → missed %d of %d (%s, 95%% Wilson %.1f%% to %.1f%%); "+
-		"%d regression(s), %d fix(es), %d drift(s)\n",
+		"%d regression(s), %d fix(es), %d drift(s)%s\n",
 		d.From.Missed, d.From.MustAlert, pct(d.From.MissRate),
 		d.From.MissRateLow*100, d.From.MissRateHigh*100,
 		d.To.Missed, d.To.MustAlert, pct(d.To.MissRate),
 		d.To.MissRateLow*100, d.To.MissRateHigh*100,
-		d.Regressions, d.Fixes, d.Drifts)
+		d.Regressions, d.Fixes, d.Drifts, selfGradedMark(d.From.ScoreMode))
 	if d.Ambient != nil {
 		why := "the base stream's bytes changed between the runs, so this " +
 			"is drift about the estate, not about the rules"

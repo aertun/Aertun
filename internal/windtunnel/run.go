@@ -158,11 +158,15 @@ const (
 	MissContent  = "content"
 )
 
-// The scoring modes (decision 6). Reference mode is the calibrated
-// instrument; their-Sigma mode imports the organisation's own rules
-// through the existing importer and joins at technique level, with the
-// join's fidelity limit stated on every document it seals; their-alerts
-// is named so its refusal is a named refusal, not a missing feature.
+// The scoring modes (decision 6). their-Sigma mode is the primary one: it
+// imports the organisation's own rules through the existing importer and
+// joins at technique level, with the join's fidelity limit stated on every
+// document it seals. Reference mode scores the shipped pack, whose rules
+// the scenarios were written beside, so it is the secondary mode and
+// self-graded — a regression test of the pack — and every document and
+// screen of it says so (StandingSelfGraded). It stays the default when no
+// instrument is named, so existing callers keep working. their-alerts is
+// named so its refusal is a named refusal, not a missing feature.
 const (
 	ModeReference  = "reference"
 	ModeTheirSigma = "their-sigma"
@@ -202,6 +206,10 @@ type RunOptions struct {
 	// Signer, when set, dual-signs the sealed scorecard in the wind tunnel's
 	// own context. Nil writes an unsigned document that says so.
 	Signer *pack.Key
+	// Mutate is how many effect-preserving respellings of each scenario's
+	// session to replay besides the session itself (mutate.go), at most
+	// MaxMutate. Zero runs no variants and writes no mutation section.
+	Mutate int
 }
 
 // Run splices, replays, joins and scores, and returns the sealed scorecard.
@@ -219,6 +227,12 @@ func Run(opts RunOptions) (*Scorecard, error) {
 				"with phase 3's containment, and nothing in this build can "+
 				"be configured into them", opts.Base)
 		}
+	}
+	if opts.Mutate < 0 || opts.Mutate > MaxMutate {
+		return nil, fmt.Errorf("%d variants per scenario were asked for; "+
+			"mutation runs between 0 and %d, enough to show a rule's "+
+			"failure modes and few enough to stay a CI step", opts.Mutate,
+			MaxMutate)
 	}
 	mode := opts.ScoreMode
 	if mode == "" {
@@ -338,7 +352,8 @@ func Run(opts RunOptions) (*Scorecard, error) {
 	ambientSp.Close()
 
 	card := &Scorecard{Schema: DocSchema, Mode: PhaseReplay, Engine: Engine,
-		ScoreMode: mode, Base: baseName, BaseDigest: baseDigest,
+		ScoreMode: mode, Standing: standingOf(mode),
+		Base: baseName, BaseDigest: baseDigest,
 		BaseEvents: baseEvents, Pack: ref.Name, PackDigest: ref.Digest,
 		Corpus: CorpusName, Seed: opts.Seed, Scratch: into,
 		GeneratedAt: opts.Now.UTC(),
@@ -357,10 +372,18 @@ func Run(opts RunOptions) (*Scorecard, error) {
 		card.TheirSigma = theirs.report
 		card.ModeBlind = sigmaJoinBlind
 	}
+	if opts.Mutate > 0 {
+		card.Mutation = &MutationReport{Requested: opts.Mutate,
+			Caveat: mutationCaveat}
+	}
 	for _, l := range selected {
-		row, err := runOne(l, ref, base, into, opts.Seed, ambient, theirs != nil)
+		row, mrow, err := runOne(l, ref, base, into, opts.Seed, ambient,
+			theirs != nil, opts.Mutate)
 		if err != nil {
 			return nil, err
+		}
+		if mrow != nil {
+			card.Mutation.Rows = append(card.Mutation.Rows, *mrow)
 		}
 		card.Rows = append(card.Rows, *row)
 		card.Scenarios = append(card.Scenarios, ScenarioDigest{
@@ -370,6 +393,9 @@ func Run(opts RunOptions) (*Scorecard, error) {
 	}
 	if err := card.aggregate(); err != nil {
 		return nil, err
+	}
+	if card.Mutation != nil {
+		card.Mutation.tally()
 	}
 	if err := card.seal(); err != nil {
 		return nil, err
@@ -384,19 +410,60 @@ func Run(opts RunOptions) (*Scorecard, error) {
 	return card, nil
 }
 
+// replaySession splices one placed session into the base stream, writes
+// the result to a scratch spool at dir, and replays the instrument over it
+// with the watermark budget the spliced stream's own arrivals earn.
+func replaySession(base, events []telemetry.Event, ref *Reference,
+	dir string) (*passResult, error) {
+
+	stream := Interleave(base, events)
+	sp, err := WriteScratch(dir, stream)
+	if err != nil {
+		return nil, err
+	}
+	defer sp.Close()
+	return runPass(sp, ref, latenessHistogram(stream).quantile(0.99))
+}
+
+// referenceRows joins every expectation a scenario declares to a replay,
+// by id.
+func referenceRows(sc *Scenario, ref *Reference, attack,
+	ambient *passResult, placed *Placed) []ExpectRow {
+
+	var rows []ExpectRow
+	for _, x := range sc.Expects {
+		rows = append(rows, *scoreExpect(sc, x, ref, attack, ambient, placed))
+	}
+	return rows
+}
+
+// sessionOutcome is the tier one replayed session lands in, by the join
+// the instrument calls for — the same fold for the scenario's own session
+// and for every variant of it, so a variant is scored as the original was.
+func sessionOutcome(sc *Scenario, ref *Reference, attack,
+	ambient *passResult, placed *Placed, their bool) string {
+
+	if their {
+		return theirOutcome(joinByTechnique(sc, ref, attack, ambient))
+	}
+	return outcomeOf(referenceRows(sc, ref, attack, ambient, placed))
+}
+
 // runOne runs one scenario and its twin over the base stream and scores
 // both — by the id join in reference mode, by the technique join when the
-// instrument is their Sigma rules.
+// instrument is their Sigma rules — and, when mutate is above zero, that
+// many respellings of the scenario's session as well.
 func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
-	seed int64, ambient *passResult, their bool) (*Row, error) {
+	seed int64, ambient *passResult, their bool, mutate int) (*Row,
+	*MutationRow, error) {
 
 	sc := l.Scenario
 	if err := Preflight(sc, base); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	anchor, err := DefaultAnchor(base)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pass := func(steps []Step, suffix string) (*passResult, *Placed, error) {
@@ -404,15 +471,8 @@ func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
 		if perr != nil {
 			return nil, nil, perr
 		}
-		stream := Interleave(base, placed.Events)
-		dir := filepath.Join(into, sanitize(sc.ID)+suffix)
-		sp, werr := WriteScratch(dir, stream)
-		if werr != nil {
-			return nil, nil, werr
-		}
-		defer sp.Close()
-		budget := latenessHistogram(stream).quantile(0.99)
-		res, rerr := runPass(sp, ref, budget)
+		res, rerr := replaySession(base, placed.Events, ref,
+			filepath.Join(into, sanitize(sc.ID)+suffix))
 		if rerr != nil {
 			return nil, nil, rerr
 		}
@@ -421,11 +481,11 @@ func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
 
 	attack, placed, err := pass(sc.Steps, "")
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", sc.ID, err)
+		return nil, nil, fmt.Errorf("%s: %w", sc.ID, err)
 	}
 	twinPass, twinPlaced, err := pass(sc.Twin.Steps, "--twin")
 	if err != nil {
-		return nil, fmt.Errorf("%s, its twin: %w", sc.ID, err)
+		return nil, nil, fmt.Errorf("%s, its twin: %w", sc.ID, err)
 	}
 
 	row := &Row{Scenario: sc.ID, Digest: l.Digest, Family: sc.Family,
@@ -442,10 +502,7 @@ func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
 		row.Note = theirRowNote(sc, ref, attack, ambient, row.Expects)
 		row.Outcome = theirOutcome(row.Expects)
 	} else {
-		for _, x := range sc.Expects {
-			row.Expects = append(row.Expects, *scoreExpect(sc, x, ref, attack,
-				ambient, placed))
-		}
+		row.Expects = referenceRows(sc, ref, attack, ambient, placed)
 		row.Outcome = outcomeOf(row.Expects)
 	}
 
@@ -465,7 +522,15 @@ func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
 		row.Twin.Outcome = TwinFalseFire
 	}
 	row.Twin.SessionEvents = len(twinPlaced.Events)
-	return row, nil
+	if mutate == 0 {
+		return row, nil, nil
+	}
+	mrow, err := runVariants(l, ref, base, into, placed, ambient, their,
+		row.Outcome, mutate)
+	if err != nil {
+		return nil, nil, err
+	}
+	return row, mrow, nil
 }
 
 // scoreExpect joins one expectation to what the replay found. The join is

@@ -100,7 +100,8 @@ Detecting and deciding
   aertun analyst plan | triage [--limit N] [--dry-run] [--calibration F --calibration-key F] | eval [--k 3]
   aertun analyst calibrate --key F [--out F] [--epsilon 0.05] [--delta 0.05] [--valid-for 720h]   the analyst's threshold fitted on verified people's verdicts, signed
   aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
-  aertun windtunnel list-scenarios | preflight | run [--sigma DIR] | scorecard | diff OLD NEW | verify   breach simulation by replay, scored and signed; diff is the CI gate
+  aertun windtunnel run --sigma DIR [--mutate N] [--out F]   replay agent attacks against your own Sigma rules: the primary mode
+  aertun windtunnel run --score reference | list-scenarios | preflight | scorecard | diff OLD NEW | verify   the shipped pack, self-graded; signed only in CI; diff is the CI gate
   aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
   aertun twin record --out FILE | help     what the agent interface would answer now, in one file under its digest, for aertun mcp --twin to replay
   aertun forge export --key F --out F [--public-key F] | verify FILE --key F [--log]   what the analyst saw and answered, and how a person ruled, as signed episodes for training

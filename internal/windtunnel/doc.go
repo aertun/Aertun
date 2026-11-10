@@ -47,22 +47,29 @@
 // stream digest, reference pack digest, mode — then the numbers. A number
 // without those names is a claim rather than a measurement.
 //
-// 6. THREE SCORING MODES, TWO BUILT. Reference mode scores against
-// aertun's own pack as the calibrated instrument. their-Sigma mode (phase
-// 2, shipped) imports the organisation's own Sigma rules through the
-// existing importer and joins at technique level, with the join's
-// fidelity limit stated on every document it seals and import refusals
-// counted rather than dropped. their-alerts mode is still refused with a
+// 6. THREE SCORING MODES, TWO BUILT, THEIR RULES FIRST. their-Sigma mode
+// is the primary one: it imports the organisation's own Sigma rules
+// through the existing importer and joins at technique level, with the
+// join's fidelity limit stated on every document it seals and import
+// refusals counted rather than dropped. Reference mode scores against
+// Aertun's own pack, whose rules the scenarios were written beside, so it
+// is secondary and self-graded — a regression test of the pack — and
+// every document and screen that shows its result says so. their-alerts
+// mode is still refused with a
 // message that says so, because a mode that half-runs would measure
 // nothing while claiming to measure the org's controls. Modes are never
 // pooled: a scorecard names its mode, and the diff refuses to compare
 // across them.
 //
-// 7. THE DOCUMENT IS SEALED AND DUAL-SIGNED. sha256 self-digest over the
-// canonical form, then Ed25519 and ML-DSA-65 both, in the context
-// aertun/windtunnel-scorecard/v1 — a signature made for one purpose must
-// never be presentable as one for another, so a scorecard cannot be
-// promoted to a content-pack signature by whoever holds the file.
+// 7. THE DOCUMENT IS SEALED AND DUAL-SIGNED, IN CI. sha256 self-digest
+// over the RFC 8785 canonical form, so any conforming canonicaliser
+// recomputes the signed bytes, then Ed25519 and ML-DSA-65 both, in the
+// context aertun/windtunnel-scorecard/v1 — a signature made for one
+// purpose must never be presentable as one for another, so a scorecard
+// cannot be promoted to a content-pack signature by whoever holds the
+// file. The command signs only where the environment says it is CI,
+// because the signing key belongs in a CI secret and a signature should
+// attest a run from committed inputs, not whatever a laptop ran.
 //
 // 8. REPLAY IS THE SAFETY STORY, BY CONSTRUCTION. The exfiltration step is a
 // log line about exfiltration, destined for a scratch spool; nothing is sent
