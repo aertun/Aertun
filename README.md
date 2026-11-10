@@ -104,6 +104,26 @@ A calibration certificate for the AI analyst's threshold (`aertun analyst
 calibrate`, below) is a proof of the same shape, and `proof verify` checks
 it the same way.
 
+**Another vendor's AI, scored on your decisions.** `aertun verdict import
+FILE --source NAME` takes a product's export of what its AI said about each
+alert (JSON lines or CSV with the columns `alert`, `verdict`, `at` and
+optionally `confidence`, `disposition`, `disposition_at`, `source`; a file
+carrying any other column, such as the product's reasoning, is refused
+whole). `aertun verdict prove --source NAME --since DATE --tolerance R --key
+F` joins each verdict to the decision a verified person made on the finding
+that alert raised here — the source's mapping names the path its alert id
+is at (`alert`) — and signs a proof about false closures: alerts the product
+closed that a person found real. The tolerance is declared before the proof
+is made and has no default. Refuted means the exact one-sided lower bound on
+the rate is over it, and the alerts are named; proven means the upper bound
+is at or under it on at least 30 closures; anything between is
+inconclusive. Only verdicts given before the decision count, so a product
+that learns from analysts cannot score by answering after them, and the
+proof says how many of those were delivered here first rather than resting
+on the product's own clock. The rate is over the closures somebody decided,
+which are not a random sample of what the product closed; the proof states
+that coverage beside it.
+
 ## The wind tunnel
 
 `aertun windtunnel run --sigma DIR` replays scripted malicious-agent

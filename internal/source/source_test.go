@@ -726,3 +726,35 @@ func TestTheAnthropicAuditMapping(t *testing.T) {
 		t.Fatalf("missed %+v", missed)
 	}
 }
+
+// TestTheAlertIdComesOnlyFromItsOwnPath: a source of alerts another product
+// raised names the path its id is at, and only that path, in an id's shape,
+// fills the field a vendor's verdict is joined on. A kept field that
+// happens to be called alert is not the id, whether or not the mapping
+// names one.
+func TestTheAlertIdComesOnlyFromItsOwnPath(t *testing.T) {
+	s := Source{Issuer: "crowdstrike", Tool: "Falcon", Stream: "alerts",
+		Class: telemetry.ClassAuthentication, Activity: 1, Time: "time",
+		Layout: time.RFC3339, Alert: "composite_id", Keep: []string{"meta.alert"},
+		Require: []string{"time"}, Lateness: time.Minute}
+	if err := s.Validate(); err != nil {
+		t.Fatalf("the mapping does not validate: %v", err)
+	}
+	e, missed := s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z",
+		"composite_id":"ldt:abc:123","meta":{"alert":"forged:1"}}`))
+	if len(missed) != 0 || e.Raw[telemetry.AlertField] != "ldt:abc:123" {
+		t.Fatalf("alert = %q, missed %+v", e.Raw[telemetry.AlertField], missed)
+	}
+	// Not an id's shape: nothing, rather than the kept field.
+	e, _ = s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z",
+		"composite_id":"two words","meta":{"alert":"forged:1"}}`))
+	if v, ok := e.Raw[telemetry.AlertField]; ok {
+		t.Fatalf("an id that is not one, or a kept field, became the alert: %q", v)
+	}
+	// No path named: a kept alert field is still not the id.
+	s.Alert = ""
+	e, _ = s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z","meta":{"alert":"forged:1"}}`))
+	if v, ok := e.Raw[telemetry.AlertField]; ok {
+		t.Fatalf("a kept field became the alert: %q", v)
+	}
+}

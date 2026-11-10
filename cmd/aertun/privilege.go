@@ -190,6 +190,14 @@ var commandNeeds = map[string]need{
 	// asks for tune before it runs, because a row here may only narrow
 	// its parent and the parent is the analyst's triage.
 	"analyst calibrate": {action: auth.ActTriage},
+	// A vendor's export of what its AI said is evidence brought into the
+	// security area, the weight of importing intelligence. Proving signs a
+	// measurement of a product in the organisation's name, so the command
+	// itself asks for tune before it reads anything, as calibrating does;
+	// the row may only narrow its parent.
+	"verdict":       {action: auth.ActTriage},
+	"verdict list":  {action: auth.ActView},
+	"verdict prove": {action: auth.ActTriage},
 	// The benchmark measures the analyst and, against a real model, spends
 	// the model budget to do it: the same weight as the analyst's own eval.
 	// Rendering a document somebody already has is only reading.
@@ -660,7 +668,7 @@ var commandAreas = map[string]string{
 	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity, "telemetry": auth.AreaSecurity,
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
 	"auditlog": auth.AreaLog, "compliance": auth.AreaLog, "bench": auth.AreaSecurity,
-	"windtunnel": auth.AreaSecurity, "proof": auth.AreaSecurity,
+	"windtunnel": auth.AreaSecurity, "proof": auth.AreaSecurity, "verdict": auth.AreaSecurity,
 	"twin":  auth.AreaSecurity,
 	"forge": auth.AreaSecurity, "forge verify": auth.AreaLog,
 }
