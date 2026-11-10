@@ -100,6 +100,10 @@ specificity as 95% Wilson lower bounds, so a proof over one example reads as
 the weak thing it is. Without a corpus the best verdict is inconclusive:
 `verify` exits non-zero on anything but proven, which makes it a CI gate.
 
+A calibration certificate for the AI analyst's threshold (`aertun analyst
+calibrate`, below) is a proof of the same shape, and `proof verify` checks
+it the same way.
+
 ## The wind tunnel
 
 `aertun windtunnel` replays scripted malicious-agent sessions — an
@@ -143,6 +147,21 @@ do is be wrong in a suggestion:
   threshold it is not even shown. The reason a person reads is assembled from
   the counts, never from what the model wrote, so a prompt injection in a log
   cannot reach the screen of whoever decides.
+- **The threshold can be measured rather than declared.** `aertun analyst
+  calibrate` puts the findings verified people have ruled to the configured
+  model and fits the lowest threshold at which closing suggestions on
+  findings people ruled real stay under a stated rate (`--epsilon`) with
+  stated confidence (`--delta`): a Clopper–Pearson bound, corrected for every
+  candidate threshold examined. The result is a signed certificate naming
+  the model, the adapter (`AERTUN_MODEL_ADAPTER_SHA256`) and the prompt
+  template by digest, with exact counts and an expiry. `aertun analyst triage
+  --calibration FILE --calibration-key KEY` gates on it; a certificate that
+  has expired, does not verify, or was fitted for another model, adapter or
+  template is refused and every answer goes to a person, and the run says
+  so; so does an answer not scored on the channel the certificate was fitted
+  on. Where the endpoint returns token probabilities, they are a second
+  score beside the stated confidence, and a certificate names which one it
+  was fitted on.
 - **A privacy guard sits in front of every model call.** Personal data and
   credentials are masked before the prompt leaves and restored in the answer,
   and invisible characters are removed first.

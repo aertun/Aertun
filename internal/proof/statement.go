@@ -117,6 +117,9 @@ type Predicate struct {
 	// Detection is set on a detection proof, and holds how much evidence
 	// the verdict rests on.
 	Detection *DetectionEvidence `json:"detection,omitempty"`
+	// Calibration is set on a calibration certificate, and holds the
+	// binding, the counts and the bound.
+	Calibration *CalibrationEvidence `json:"calibration,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -177,9 +180,6 @@ func (s *Statement) Validate() error {
 	if s.Type != StatementType {
 		return fmt.Errorf("this is a %q statement, and a proof is %s", s.Type, StatementType)
 	}
-	if s.PredicateType != PredicateDetection {
-		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
-	}
 	if len(s.Subject) == 0 {
 		return fmt.Errorf("a proof names what it is about, and this names nothing")
 	}
@@ -228,5 +228,35 @@ func (s *Statement) Validate() error {
 	if _, err := time.Parse(time.RFC3339, p.VerifiedAt); err != nil {
 		return fmt.Errorf("verified_at is not RFC 3339: %w", err)
 	}
-	return nil
+	return s.validateEvidence()
+}
+
+// validateEvidence holds each predicate to its own evidence and to no
+// other: a predicate this version does not know is refused, and so is a
+// statement whose evidence belongs to another predicate, or carries a
+// second kind beside its own — a reader of one kind of proof would not
+// read the other's numbers, and a signed number nobody reads is one the
+// signer could have put there for the wrong reader.
+func (s *Statement) validateEvidence() error {
+	p := s.Predicate
+	kinds := 0
+	for _, set := range []bool{p.Detection != nil, p.Calibration != nil} {
+		if set {
+			kinds++
+		}
+	}
+	switch s.PredicateType {
+	case PredicateDetection:
+		if p.Detection == nil || kinds != 1 {
+			return fmt.Errorf("a detection proof carries detection evidence and no other")
+		}
+		return nil
+	case PredicateCalibration:
+		if p.Calibration == nil || kinds != 1 {
+			return fmt.Errorf("a calibration certificate carries calibration evidence and no other")
+		}
+		return p.Calibration.validate(s)
+	default:
+		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
+	}
 }

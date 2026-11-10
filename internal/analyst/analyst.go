@@ -346,7 +346,14 @@ type Suggestion struct {
 	// analyst never auto-closes on a changed verdict.
 	CounterfactualChanged bool          `json:"counterfactual_changed,omitempty"`
 	CounterfactualVerdict finding.State `json:"counterfactual_verdict,omitempty"`
-	Trace                 []Trace       `json:"trace"`
+	// Threshold is the gate the verdict was held to and Certified says a
+	// calibration certificate set it; Certificate is what became of the
+	// certificate offered (decide.Result.Certificate). All three are empty
+	// when no certificate was offered.
+	Threshold   float64 `json:"threshold,omitempty"`
+	Certified   bool    `json:"certified,omitempty"`
+	Certificate string  `json:"certificate,omitempty"`
+	Trace       []Trace `json:"trace"`
 }
 
 // Triage gathers, asks, and turns the answer into a suggestion.
@@ -357,21 +364,34 @@ func Triage(ctx context.Context, m decide.Model, f finding.Finding,
 	return Ask(ctx, m, state, trace)
 }
 
-// Ask puts a gathered state to the model.
+// Ask puts a gathered state to the model, gated at the decider's declared
+// threshold.
 func Ask(ctx context.Context, m decide.Model, state State,
 	trace []Trace) (Suggestion, error) {
 
+	return AskWith(ctx, m, state, trace, nil)
+}
+
+// AskWith is Ask with a calibration certificate offered to the gate, for
+// the question and for the counterfactual re-ask alike: decide uses the
+// certificate's threshold when it fits this model and template, and the
+// declared one otherwise. cal may be nil, which is Ask.
+func AskWith(ctx context.Context, m decide.Model, state State,
+	trace []Trace, cal *decide.Calibration) (Suggestion, error) {
+
 	out := Suggestion{Trace: trace}
-	res, err := decide.Decide(ctx, Decider(), m, state)
+	res, err := decide.DecideWith(ctx, Decider(), m, state, cal)
 	if err != nil {
 		return out, err
 	}
+	out.Certificate = res.Certificate
 	a, ok := res.Get("verdict")
 	if !ok {
 		out.Abstained = "no answer"
 		return out, nil
 	}
 	out.Confidence, out.Agreement = a.Confidence, a.Agreement
+	out.Threshold, out.Certified = a.Threshold, a.Certified
 	out.Verdict = a.Value
 	if a.Escalate {
 		out.Abstained = a.Why
@@ -392,7 +412,7 @@ func Ask(ctx context.Context, m decide.Model, state State,
 	// otherwise switch the check off.
 	cfState := neutraliseUntrusted(state)
 	out.CounterfactualChanged = true
-	if cfRes, cfErr := decide.Decide(ctx, Decider(), m, cfState); cfErr == nil {
+	if cfRes, cfErr := decide.DecideWith(ctx, Decider(), m, cfState, cal); cfErr == nil {
 		if cfa, ok := cfRes.Get("verdict"); ok && !cfa.Escalate {
 			out.CounterfactualVerdict = finding.State(cfa.Value)
 			out.CounterfactualChanged = a.Value != cfa.Value
@@ -421,6 +441,10 @@ func Ask(ctx context.Context, m decide.Model, state State,
 		return out, nil
 	}
 	out.Reason = Reason(state.Facts, a.Value, a.Confidence, a.Agreement)
+	if out.Certified {
+		out.Reason += fmt.Sprintf(" It cleared the threshold %.2f that a "+
+			"signed calibration certificate sets for this model.", out.Threshold)
+	}
 	if out.CounterfactualChanged {
 		out.Reason += " The verdict did not hold when the text whoever is " +
 			"detected wrote was taken out of the question, so check it " +

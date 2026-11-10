@@ -55,6 +55,8 @@ package decide
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -64,9 +66,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/calib"
 	"github.com/aertun/aertun/internal/model"
+	"github.com/aertun/aertun/internal/pack"
+	"github.com/aertun/aertun/internal/proof"
 )
 
 // Kind is what shape of answer a question takes.
@@ -194,8 +200,11 @@ type Model interface {
 // and a seed, in model.Params. Sent when the model can carry them, so the
 // endpoint's default — which may be temperature 0, a promise of determinism
 // nobody here asked for — is never what a sample is drawn at. A model that
-// cannot (the privacy guard forwards prompts, not sampling knobs) is asked
-// through Complete; the permuted prompts reach it the same either way.
+// also returns a model.Reply (model.Replier) is asked through that instead,
+// with the same draw and a request for token probabilities; the privacy
+// guard is one, and forwards the prompts and that request but not the
+// sampling knobs. A model that is neither is asked through Complete; the
+// permuted prompts reach it the same either way.
 type Tuned interface {
 	CompleteTuned(ctx context.Context, system, user string, p model.Params) (string, error)
 }
@@ -216,8 +225,21 @@ type Answer struct {
 	// Confidence is the lower of the model's stated confidence and the
 	// share of samples that agreed.
 	Confidence float64 `json:"confidence"`
+	// Probability is the same on the token channel: the lower of the
+	// probability the endpoint gave the tokens of the chosen word,
+	// averaged over the samples that chose it, and the agreement. Nil
+	// unless every one of those samples came with token probabilities
+	// that spelled the word — a share of them would be a sample chosen by
+	// whatever made the others not carry one.
+	Probability *float64 `json:"probability,omitempty"`
 	// Agreement is that share, on its own.
 	Agreement float64 `json:"agreement"`
+	// Threshold is the gate this answer was held to, and Certified says it
+	// came from a calibration certificate. Both are set only when a
+	// certificate was offered, so a reader of an answer can tell which
+	// gate let it through.
+	Threshold float64 `json:"threshold,omitempty"`
+	Certified bool    `json:"certified,omitempty"`
 	// Escalate says a person decides this one, and Why says why.
 	Escalate bool   `json:"escalate"`
 	Why      string `json:"why,omitempty"`
@@ -229,6 +251,10 @@ type Result struct {
 	Answers  []Answer `json:"answers"`
 	Escalate bool     `json:"escalate"`
 	Note     string   `json:"note,omitempty"`
+	// Certificate is what became of a calibration certificate offered to
+	// the gate: CertificateUsed, or "refused: " and one of calib's closed
+	// set of reasons. Empty when none was offered.
+	Certificate string `json:"certificate,omitempty"`
 }
 
 // Get returns one question's answer.
@@ -367,10 +393,81 @@ func vary(v any, seed uint64) any {
 	}
 }
 
-// Decide answers a decider's questions about state.
+// -- a calibrated gate ----------------------------------------------------------
+//
+// The declared threshold is a guess about one model asked one way. A
+// calibration certificate (internal/calib) replaces the guess with a
+// measurement: a threshold fitted on what people ruled, bound to the
+// model's name, the adapter's digest, the prompt template's digest and the
+// decider's name, and signed. The gate uses a certificate's threshold only
+// when all of that matches what it is gating, both signatures verify
+// against the key the operator handed over, the certificate is proven and
+// in force. A certificate offered that does not hold escalates every
+// answer to a person rather than falling back to the declared threshold:
+// the operator chose a measurement, and a gate that quietly returned to the
+// guess would read as measured when it was not.
+
+// CertificateUsed is Result.Certificate when an offered certificate gated
+// the answers.
+const CertificateUsed = "used"
+
+// Calibration is a certificate offered to the gate.
+type Calibration struct {
+	// Certificate is the signed certificate's bytes, as read from its file.
+	Certificate []byte
+	// Key is the public key the operator trusts to sign certificates:
+	// handed over, never taken from the certificate.
+	Key pack.KeyPublic
+	// Adapter is the sha256 of the adapter the model runs with, empty for
+	// none.
+	Adapter string
+	// Now is the moment the certificate is checked at; zero is the clock.
+	Now time.Time
+}
+
+// check opens the certificate for d and m: its evidence when it may gate
+// them, and what Result.Certificate says either way.
+func (c *Calibration) check(d Decider, m Model) (*proof.CalibrationEvidence, string) {
+	now := c.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	ev, err := calib.Check(c.Certificate, c.Key, calib.Binding{Model: m.Name(),
+		Adapter: c.Adapter, Template: TemplateDigest(d), Family: d.Name}, now)
+	if err != nil {
+		return nil, "refused: " + calib.Reason(err)
+	}
+	return ev, CertificateUsed
+}
+
+// TemplateDigest is the sha256 of everything about how a decider asks that
+// is not the state: the system prompt with the options in declared order,
+// how many samples are drawn and at what temperature, and the fence the
+// state is carried in. The threshold is not part of it — the threshold is
+// what a certificate sets — and neither is the name, which a certificate
+// binds separately as its task family.
+func TemplateDigest(d Decider) string {
+	b, _ := json.Marshal(struct {
+		System      string  `json:"system"`
+		Samples     int     `json:"samples"`
+		Temperature float64 `json:"temperature"`
+		Fence       string  `json:"fence"`
+	}{systemPrompt(d), d.samples(), sampleTemperature, fence})
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// Decide answers a decider's questions about state, gated at the threshold
+// the decider declares.
 //
 // state is any JSON value. m may be nil, in which case everything escalates.
 func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) {
+	return DecideWith(ctx, d, m, state, nil)
+}
+
+// DecideWith is Decide with a calibration certificate offered to the gate.
+// cal may be nil, which is Decide.
+func DecideWith(ctx context.Context, d Decider, m Model, state any, cal *Calibration) (Result, error) {
 	res := Result{Decider: d.Name}
 	raw, err := json.Marshal(state)
 	if err != nil {
@@ -400,10 +497,15 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 		value string
 		score float64
 		conf  float64
+		// prob is the token probability of the chosen word, when the
+		// reply came with token probabilities that spelled it.
+		prob    float64
+		hasProb bool
 	}
 	votes := map[string][]vote{}
 	var failures []string
 	n := d.samples()
+	replier, canReply := m.(model.Replier)
 	tuned, canTune := m.(Tuned)
 	for i := 0; i < n; i++ {
 		seed := sampleSeed(raw, i)
@@ -420,15 +522,24 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 			fmt.Sprintf("\n(sample %d of %d)", i+1, n)
 		sys := systemPrompt(perAttempt(d, seed))
 		var out string
+		var reply model.Reply
 		var cerr error
-		if canTune {
-			t := sampleTemperature
-			// Shifted, because a seed is any integer here but some
-			// endpoints refuse a negative one.
-			s := int64(seed >> 1)
-			out, cerr = tuned.CompleteTuned(ctx, sys, user,
-				model.Params{Temperature: &t, Seed: &s})
-		} else {
+		t := sampleTemperature
+		// Shifted, because a seed is any integer here but some endpoints
+		// refuse a negative one.
+		s := int64(seed >> 1)
+		params := model.Params{Temperature: &t, Seed: &s}
+		switch {
+		case canReply:
+			// The same draw, with the token probabilities asked for where
+			// the endpoint gives them: a second score for the answer,
+			// beside the one the model states.
+			params.Logprobs = true
+			reply, cerr = replier.CompleteReply(ctx, sys, user, params)
+			out = reply.Text
+		case canTune:
+			out, cerr = tuned.CompleteTuned(ctx, sys, user, params)
+		default:
 			out, cerr = m.Complete(ctx, sys, user)
 		}
 		if cerr != nil {
@@ -456,7 +567,13 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 			if c < 0 || c > 1 || math.IsNaN(c) {
 				c = 0
 			}
-			votes[q.Name] = append(votes[q.Name], vote{v, s, c})
+			vt := vote{value: v, score: s, conf: c}
+			if q.Kind != Score {
+				// A score's digits are not a choice between words, so
+				// the probability of spelling them is not a confidence.
+				vt.prob, vt.hasProb = wordProbability(reply, q.Name, v)
+			}
+			votes[q.Name] = append(votes[q.Name], vt)
 		}
 	}
 	if len(failures) == n {
@@ -464,6 +581,10 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 	}
 
 	gate := d.threshold()
+	var cert *proof.CalibrationEvidence
+	if cal != nil {
+		cert, res.Certificate = cal.check(d, m)
+	}
 	for _, q := range d.Questions {
 		vs := votes[q.Name]
 		ans := Answer{Question: q.Name}
@@ -492,9 +613,13 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 		} else {
 			count := map[string]int{}
 			conf := map[string]float64{}
+			prob := map[string]float64{}
+			unprobed := map[string]bool{}
 			for _, v := range vs {
 				count[v.value]++
 				conf[v.value] += v.conf
+				prob[v.value] += v.prob
+				unprobed[v.value] = unprobed[v.value] || !v.hasProb
 			}
 			// Scanned in sorted order so that which values a tie is
 			// reported between never depends on map iteration — the why
@@ -517,6 +642,10 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 			}
 			ans.Agreement = float64(count[best]) / float64(n)
 			ans.Confidence = math.Min(conf[best]/float64(count[best]), ans.Agreement)
+			if !unprobed[best] {
+				p := math.Min(prob[best]/float64(count[best]), ans.Agreement)
+				ans.Probability = &p
+			}
 			if tied != "" {
 				// Two answers with an equal claim and nothing to choose
 				// between them. Something must break the tie, and neither
@@ -535,15 +664,124 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 			}
 			ans.Value = best
 		}
-		if ans.Confidence < gate {
+		score, threshold, scored := ans.Confidence, gate, "confidence"
+		// offChannel is an answer a certificate that does hold cannot
+		// gate: a token-probability threshold says nothing about an answer
+		// that came without token probabilities.
+		offChannel := false
+		if cal != nil {
+			switch {
+			case cert == nil:
+			case cert.Channel == proof.ChannelStated:
+				threshold, ans.Certified = cert.Threshold, true
+			case ans.Probability != nil:
+				score, threshold, scored = *ans.Probability, cert.Threshold, "token probability"
+				ans.Certified = true
+			default:
+				offChannel = true
+			}
+			ans.Threshold = threshold
+		}
+		switch {
+		case offChannel:
+			// Held to the declared threshold instead, it would be gated by
+			// the guess the certificate was offered to replace.
 			ans.Escalate = true
-			ans.Why = fmt.Sprintf("confidence %.2f is under the %.2f threshold",
-				ans.Confidence, gate)
+			ans.Why = "the answer came without token probabilities, which " +
+				"the calibration certificate is fitted on, so a person decides"
+			res.Escalate = true
+		case cal != nil && cert == nil:
+			// A certificate was offered and does not hold. Falling back to
+			// the declared threshold would put the guess back in exactly
+			// the place somebody chose a measurement for, without their
+			// saying so; a person decides until a certificate that fits is
+			// handed over.
+			ans.Escalate = true
+			ans.Why = "the calibration certificate was " + res.Certificate +
+				", so a person decides"
+			res.Escalate = true
+		case score < threshold:
+			ans.Escalate = true
+			ans.Why = fmt.Sprintf("%s %.2f is under the %.2f threshold",
+				scored, score, threshold)
 			res.Escalate = true
 		}
 		res.Answers = append(res.Answers, ans)
 	}
 	return res, nil
+}
+
+// wordProbability is the token probability of the word a reply chose for
+// a question: found where the reply spells it, and computed from the
+// tokens that spell exactly those bytes. False when the reply carries no
+// token probabilities or does not spell the word as a plain string.
+func wordProbability(r model.Reply, question, value string) (float64, bool) {
+	if len(r.Tokens) == 0 {
+		return 0, false
+	}
+	start, end, ok := valueSpan(r.Raw, question, value)
+	if !ok {
+		return 0, false
+	}
+	return r.Probability(start, end)
+}
+
+// valueSpan is where a question's value is spelt in a reply, read the way
+// parse reads it: the bytes of the string between its quotes. False when
+// the value is not there as a plain JSON string equal to value — escaped,
+// a boolean, or a different word — because a probability is only worth
+// having for the exact bytes that were chosen.
+func valueSpan(raw, question, value string) (int, int, bool) {
+	body, off := trimReply(raw)
+	dec := json.NewDecoder(strings.NewReader(body))
+	if !seek(dec, "answers") || !seek(dec, question) || !seek(dec, "value") {
+		return 0, 0, false
+	}
+	t, err := dec.Token()
+	if s, ok := t.(string); err != nil || !ok || s != value {
+		return 0, 0, false
+	}
+	end := int(dec.InputOffset())
+	start := end - len(value) - 2
+	if start < 0 || body[start:end] != `"`+value+`"` {
+		return 0, 0, false
+	}
+	return off + start + 1, off + end - 1, true
+}
+
+// seek reads the opening of an object and stops before the value of key,
+// stepping over the members ahead of it.
+func seek(dec *json.Decoder, key string) bool {
+	t, err := dec.Token()
+	if d, ok := t.(json.Delim); err != nil || !ok || d != '{' {
+		return false
+	}
+	for dec.More() {
+		t, err := dec.Token()
+		k, ok := t.(string)
+		if err != nil || !ok {
+			return false
+		}
+		if k == key {
+			return true
+		}
+		var skip json.RawMessage
+		if dec.Decode(&skip) != nil {
+			return false
+		}
+	}
+	return false
+}
+
+// trimReply is the JSON inside a reply, with a code fence around it taken
+// off, and where it starts in the reply.
+func trimReply(out string) (string, int) {
+	body := strings.TrimSpace(out)
+	body = strings.TrimPrefix(body, "```json")
+	body = strings.TrimPrefix(body, "```")
+	body = strings.TrimSuffix(body, "```")
+	body = strings.TrimSpace(body)
+	return body, strings.Index(out, body)
 }
 
 type rawAnswer struct {
@@ -552,17 +790,16 @@ type rawAnswer struct {
 }
 
 func parse(out string) (map[string]rawAnswer, error) {
-	body := strings.TrimSpace(out)
-	body = strings.TrimPrefix(body, "```json")
-	body = strings.TrimPrefix(body, "```")
-	body = strings.TrimSuffix(body, "```")
+	// The same trimming valueSpan locates a word by, so the bytes a token
+	// probability is computed over are the bytes this read the word from.
+	body, _ := trimReply(out)
 	if len(body) > 20_000 {
 		return nil, fmt.Errorf("the reply was too long")
 	}
 	var reply struct {
 		Answers map[string]rawAnswer `json:"answers"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(body)), &reply); err != nil {
+	if err := json.Unmarshal([]byte(body), &reply); err != nil {
 		return nil, fmt.Errorf("the reply was not the JSON asked for")
 	}
 	return reply.Answers, nil

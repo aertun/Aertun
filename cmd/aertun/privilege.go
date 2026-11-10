@@ -185,6 +185,11 @@ var commandNeeds = map[string]need{
 	// The analyst reads every finding and spends the model budget.
 	"analyst":      {action: auth.ActTriage},
 	"analyst plan": {action: auth.ActView},
+	// Calibrating reads every ruled finding and spends the model budget,
+	// the weight of the analyst's own eval: like eval, the command itself
+	// asks for tune before it runs, because a row here may only narrow
+	// its parent and the parent is the analyst's triage.
+	"analyst calibrate": {action: auth.ActTriage},
 	// The benchmark measures the analyst and, against a real model, spends
 	// the model budget to do it: the same weight as the analyst's own eval.
 	// Rendering a document somebody already has is only reading.

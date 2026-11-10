@@ -104,7 +104,7 @@ func TestAnObedientModelCanOnlyEverSuggest(t *testing.T) {
 	before := everythingBut(t, root)
 	now := time.Now().UTC()
 	out, waiting, err := runTriage(context.Background(), root, human("dana"),
-		20, false, now)
+		20, false, now, nil)
 	if err != nil || len(out) != 3 || waiting != 0 {
 		t.Fatalf("%d looked at, %d waiting, %v", len(out), waiting, err)
 	}
@@ -174,7 +174,7 @@ func TestAnObedientModelCanOnlyEverSuggest(t *testing.T) {
 
 	// Looked at once. A second pass asks the model nothing.
 	calls := obedient.calls
-	out, _, err = runTriage(context.Background(), root, human("dana"), 20, false, now)
+	out, _, err = runTriage(context.Background(), root, human("dana"), 20, false, now, nil)
 	if err != nil || len(out) != 0 || obedient.calls != calls {
 		t.Errorf("a second pass looked at %d again (%d calls)", len(out),
 			obedient.calls-calls)
@@ -187,10 +187,10 @@ func TestNotConfidentIsNoSuggestionAndIsNotAskedAgainUntilItChanges(t *testing.T
 	ctx, now := context.Background(), time.Now().UTC()
 
 	// A dry run records nothing, so the next pass still has all three.
-	if out, _, err := runTriage(ctx, root, human("dana"), 20, true, now); err != nil || len(out) != 3 {
+	if out, _, err := runTriage(ctx, root, human("dana"), 20, true, now, nil); err != nil || len(out) != 3 {
 		t.Fatalf("dry run: %d %v", len(out), err)
 	}
-	out, _, err := runTriage(ctx, root, human("dana"), 2, false, now)
+	out, _, err := runTriage(ctx, root, human("dana"), 2, false, now, nil)
 	if err != nil || len(out) != 2 {
 		t.Fatalf("%d %v", len(out), err)
 	}
@@ -216,7 +216,7 @@ func TestNotConfidentIsNoSuggestionAndIsNotAskedAgainUntilItChanges(t *testing.T
 		t.Errorf("%d abstentions recorded", abstained)
 	}
 	// The limit left one; the next pass takes it and not the two done.
-	if out, waiting, _ := runTriage(ctx, root, human("dana"), 20, false, now); len(out) != 1 || waiting != 0 {
+	if out, waiting, _ := runTriage(ctx, root, human("dana"), 20, false, now, nil); len(out) != 1 || waiting != 0 {
 		t.Errorf("the next pass looked at %d", len(out))
 	}
 	// It happens again: that finding has changed, and is looked at again.
@@ -225,7 +225,7 @@ func TestNotConfidentIsNoSuggestionAndIsNotAskedAgainUntilItChanges(t *testing.T
 	if err := detectRun(root, []string{"--rules", rules}); err != nil {
 		t.Fatal(err)
 	}
-	if out, _, _ := runTriage(ctx, root, human("dana"), 20, false, now); len(out) != 1 {
+	if out, _, _ := runTriage(ctx, root, human("dana"), 20, false, now, nil); len(out) != 1 {
 		t.Errorf("a finding that fired again was looked at %d time(s)", len(out))
 	}
 }
@@ -233,14 +233,14 @@ func TestNotConfidentIsNoSuggestionAndIsNotAskedAgainUntilItChanges(t *testing.T
 func TestWithNoModelOrStartedByAModelNothingRuns(t *testing.T) {
 	root, _ := analystSite(t, nil)
 	ctx, now := context.Background(), time.Now().UTC()
-	if _, _, err := runTriage(ctx, root, human("dana"), 20, false, now); err == nil ||
+	if _, _, err := runTriage(ctx, root, human("dana"), 20, false, now, nil); err == nil ||
 		!strings.Contains(err.Error(), "no model") {
 		t.Errorf("with no model: %v", err)
 	}
 	m := &stubModel{answer: func(string) string { return suggests("real", 0.95) }}
 	analystSeam = func(string) (decide.Model, string) { return m, "" }
 	ai := &Caller{Name: "agent", Kind: audit.KindAI, Verified: true}
-	if _, _, err := runTriage(ctx, root, ai, 20, false, now); err == nil || m.calls != 0 {
+	if _, _, err := runTriage(ctx, root, ai, 20, false, now, nil); err == nil || m.calls != 0 {
 		t.Errorf("a model started the analyst (%d calls): %v", m.calls, err)
 	}
 	if cmdAnalyst(root, []string{"plan"}) != nil {
@@ -498,7 +498,7 @@ func TestTriageIndicatorSourcesAreTheIndicatorsOwnCount(t *testing.T) {
 	analystSeam = func(string) (decide.Model, string) { return m, "" }
 	t.Cleanup(func() { analystSeam = nil })
 	out, _, err := runTriage(context.Background(), root, human("dana"),
-		20, false, time.Now().UTC())
+		20, false, time.Now().UTC(), nil)
 	if err != nil || len(out) != 1 {
 		t.Fatalf("%d looked at, %v", len(out), err)
 	}
@@ -532,7 +532,7 @@ func TestTriageAnOutageIsNotAVerdictAndHidesNothing(t *testing.T) {
 	down := &downModel{}
 	root, _ := analystSite(t, down)
 	ctx, now := context.Background(), time.Now().UTC()
-	out, _, err := runTriage(ctx, root, human("dana"), 20, false, now)
+	out, _, err := runTriage(ctx, root, human("dana"), 20, false, now, nil)
 	if err != nil || len(out) != 3 {
 		t.Fatalf("%d looked at, %v", len(out), err)
 	}
@@ -553,7 +553,7 @@ func TestTriageAnOutageIsNotAVerdictAndHidesNothing(t *testing.T) {
 	// The model comes back: every finding is asked again, and answered.
 	up := &stubModel{answer: func(string) string { return suggests("real", 0.95) }}
 	analystSeam = func(string) (decide.Model, string) { return up, "" }
-	out, _, err = runTriage(ctx, root, human("dana"), 20, false, now)
+	out, _, err = runTriage(ctx, root, human("dana"), 20, false, now, nil)
 	if err != nil || len(out) != 3 {
 		t.Fatalf("after the outage %d were asked again, %v", len(out), err)
 	}
@@ -599,7 +599,7 @@ func TestTriageRecordsWhatTheModelUsed(t *testing.T) {
 	// model, because usage is a fact of the endpoint, not of the seam.
 	analystSeam = nil
 	now := time.Now().UTC()
-	out, _, err := runTriage(context.Background(), root, human("dana"), 20, false, now)
+	out, _, err := runTriage(context.Background(), root, human("dana"), 20, false, now, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

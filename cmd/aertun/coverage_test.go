@@ -167,9 +167,13 @@ var coverage = map[string]surfaces{
 	// advisories that a connector or a scanner produces.
 	"analyst": {GUI: "/findings",
 		Why: "its suggestions are shown on each finding's page, where a " +
-			"person agrees with them or not",
+			"person agrees with them or not; a calibration certificate is a " +
+			"signed file handed to triage and checked by proof verify, " +
+			"read where it is used like every other proof",
 		NoMCP: "it is the agent. A model starting the analyst is a model " +
-			"starting a model, with nobody in the loop to have asked for it",
+			"starting a model, with nobody in the loop to have asked for it, " +
+			"and a model calibrating the analyst would be setting the " +
+			"threshold its own answers are held to",
 	},
 
 	// The open benchmark of the analyst's first pass: the labelled corpus,

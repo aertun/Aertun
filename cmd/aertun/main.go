@@ -97,7 +97,8 @@ Detecting and deciding
   aertun hunt --field F [FILE]             what is rare, which is what is worth a look
   aertun finding list [--state S --kind K] | risk | decide ID STATE | story [ID]
   aertun intel import FILE --source NAME | add VALUE --source NAME | list | remove ID
-  aertun analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
+  aertun analyst plan | triage [--limit N] [--dry-run] [--calibration F --calibration-key F] | eval [--k 3]
+  aertun analyst calibrate --key F [--out F] [--epsilon 0.05] [--delta 0.05] [--valid-for 720h]   the analyst's threshold fitted on verified people's verdicts, signed
   aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
   aertun windtunnel list-scenarios | preflight | run [--sigma DIR] | scorecard | diff OLD NEW | verify   breach simulation by replay, scored and signed; diff is the CI gate
   aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate

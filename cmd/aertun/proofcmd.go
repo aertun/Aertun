@@ -185,9 +185,16 @@ func notProven(st *proof.Statement) error {
 }
 
 func summary(st *proof.Statement) map[string]any {
-	return map[string]any{"verdict": st.Predicate.Verdict, "subject": st.Subject,
+	out := map[string]any{"verdict": st.Predicate.Verdict, "subject": st.Subject,
 		"claim": st.Predicate.Claim, "checks": st.Predicate.Checks,
-		"detection": st.Predicate.Detection, "verified_at": st.Predicate.VerifiedAt}
+		"verified_at": st.Predicate.VerifiedAt}
+	switch {
+	case st.Predicate.Detection != nil:
+		out["detection"] = st.Predicate.Detection
+	case st.Predicate.Calibration != nil:
+		out["calibration"] = st.Predicate.Calibration
+	}
+	return out
 }
 
 func describe(st *proof.Statement) string {
@@ -209,6 +216,15 @@ func describe(st *proof.Statement) string {
 			d.RecallLow, d.Positives, d.SpecificityLow, d.Negatives)
 	} else if d != nil {
 		b.WriteString("  evidence: none beyond the author's own fixtures")
+	}
+	if c := p.Calibration; c != nil {
+		fmt.Fprintf(&b, "  evidence: at threshold %.2f on the %s channel, %d of %d closing "+
+			"suggestion(s) were on findings ruled real, bounded at %.4f against %g "+
+			"(Clopper-Pearson at confidence 1-%g/%d); %d verdict(s), %d real\n",
+			c.Threshold, c.Channel, c.FalseClosures, c.Closures, c.Upper, c.Epsilon,
+			c.Delta, c.Candidates, c.Cases, c.Real)
+		fmt.Fprintf(&b, "  binds model %s, template %s…, family %s; expires %s",
+			c.Model, c.Template[:12], c.Family, c.Expires)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
