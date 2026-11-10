@@ -28,13 +28,14 @@ import (
 
 // proofKinds names each predicate by the word every face shows.
 var proofKinds = map[string]string{
-	proof.PredicateDetection:   "detection",
-	proof.PredicateCalibration: "calibration",
-	proof.PredicateVerdicts:    "verdicts",
+	proof.PredicateDetection:      "detection",
+	proof.PredicateCalibration:    "calibration",
+	proof.PredicateVerdicts:       "verdicts",
+	proof.PredicateReconciliation: "reconciliation",
 }
 
 // kindWords are the kinds a listing can be narrowed to.
-var kindWords = []string{"detection", "calibration", "verdicts"}
+var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation"}
 
 func proofKind(st *proof.Statement) string {
 	if k, ok := proofKinds[st.PredicateType]; ok {
@@ -46,7 +47,8 @@ func proofKind(st *proof.Statement) string {
 // wordsFrom is how a proof's words are labelled: its own for the kinds whose
 // words are rebuilt from numbers, outside for the rest.
 func wordsFrom(st *proof.Statement) func(string) *ops.Answer {
-	if st.Predicate.Calibration != nil || st.Predicate.Verdicts != nil {
+	if st.Predicate.Calibration != nil || st.Predicate.Verdicts != nil ||
+		st.Predicate.Reconciliation != nil {
 		return ops.OursText
 	}
 	return ops.Outside
@@ -197,6 +199,17 @@ func readProof(src Source) func(ops.Call) (*ops.Answer, error) {
 				With("closures", ops.Ours(k.Closures)).With("false_closures", ops.Ours(k.FalseClosures)).
 				With("false_closure_upper", ops.Ours(k.Upper)).With("expires", ops.Ours(k.Expires)).
 				With("template_sha256", ops.Ours(k.Template)))
+		case p.Reconciliation != nil:
+			v := p.Reconciliation
+			row.With("evidence", ops.Object().With("agent", ops.Ours(v.Agent)).
+				With("telemetry_agent", ops.Ours(v.Telemetry)).
+				With("since", ops.Ours(v.Since)).With("until", ops.Ours(v.Until)).
+				With("window_seconds", ops.Ours(v.Window)).
+				With("reported", ops.Ours(v.Reported)).With("calls", ops.Ours(v.Calls)).
+				With("matched", ops.Ours(v.Matched)).With("unreported", ops.Ours(v.Unreported)).
+				With("unreceived", ops.Ours(v.Unreceived)).With("connections", ops.Ours(v.Connects)).
+				With("unexplained", ops.Ours(v.Unexplained)).
+				With("shared_skipped", ops.Ours(v.SharedSkipped)))
 		case p.Verdicts != nil:
 			v := p.Verdicts
 			count := func(k, n int) *ops.Answer { return ops.Object().With("k", ops.Ours(k)).With("n", ops.Ours(n)) }

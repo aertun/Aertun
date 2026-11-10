@@ -177,7 +177,9 @@ func ProveVerdicts(in VerdictsInput) (*Statement, error) {
 			Verdicts:  ev, VerifiedAt: in.Now.UTC().Format(time.RFC3339),
 		},
 	}
-	if err := ev.validate(st); err != nil {
+	// The whole statement, as Seal will check it: a verdict that disagrees
+	// with its checks is caught here, not when somebody tries to sign it.
+	if err := st.Validate(); err != nil {
 		return nil, err
 	}
 	return st, nil

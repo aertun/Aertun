@@ -212,6 +212,8 @@ func summary(st *proof.Statement) map[string]any {
 		out["calibration"] = st.Predicate.Calibration
 	case st.Predicate.Verdicts != nil:
 		out["verdicts"] = st.Predicate.Verdicts
+	case st.Predicate.Reconciliation != nil:
+		out["reconciliation"] = st.Predicate.Reconciliation
 	}
 	return out
 }
@@ -244,6 +246,11 @@ func describe(st *proof.Statement) string {
 			c.Delta, c.Candidates, c.Cases, c.Real)
 		fmt.Fprintf(&b, "  binds model %s, template %s…, family %s; expires %s",
 			c.Model, c.Template[:12], c.Family, c.Expires)
+	}
+	if v := p.Reconciliation; v != nil {
+		fmt.Fprintf(&b, "  evidence: %d call(s) answered, %d in its account, %d unreported, %d claimed "+
+			"and never received; %d connection(s) checked, %d unexplained; it reported %d tool call(s)",
+			v.Calls, v.Matched, v.Unreported, v.Unreceived, v.Connects, v.Unexplained, v.Reported)
 	}
 	if v := p.Verdicts; v != nil {
 		fmt.Fprintf(&b, "  evidence: %d of %d closure(s) false, between %.4f and %.4f, against %g; "+

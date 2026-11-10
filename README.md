@@ -117,6 +117,22 @@ is the submitter's — and the console marks it where the agent interface labels
 it. A kept proof is verified again whenever it is read, so one edited
 afterwards shows as no longer verifying.
 
+**Does an agent do what it says it did?** `aertun agent reconcile NAME --since
+DATE --key F` holds a registered agent's own account — the tool calls its
+GenAI telemetry reported over OTLP, under the identity `--telemetry` declares
+— against what Aertun saw without asking it: every call its agent interface
+answered for the agent, read from the signed audit log after the log
+verifies, and every connection the recorder saw leave a machine `aertun agent
+maps` declares runs that agent alone. It signs a proof: refuted when anything
+is unaccounted for either way — a call it did not report, a call it reports
+that the server never received, a connection while it reported nothing —
+each named by time and closed-set names; proven when nothing is, over at least
+ten observations; inconclusive with fewer. An agent that reported nothing
+while it was seen acting is refuted, and the proof says it cannot tell that
+from one never instrumented. A machine declared for several agents is counted
+and left out, and what the agent did in other systems is not covered: nothing
+ties it to its identity there, and the join would be a guess.
+
 **Another vendor's AI, scored on your decisions.** `aertun verdict import
 FILE --source NAME` takes a product's export of what its AI said about each
 alert (JSON lines or CSV with the columns `alert`, `verdict`, `at` and
