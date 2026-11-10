@@ -19,6 +19,7 @@ import (
 	"github.com/aertun/aertun/internal/incident"
 	"github.com/aertun/aertun/internal/macaroon"
 	"github.com/aertun/aertun/internal/mcp"
+	"github.com/aertun/aertun/internal/ops"
 	"github.com/aertun/aertun/internal/untrusted"
 	"github.com/aertun/aertun/internal/vuln"
 )
@@ -502,7 +503,7 @@ func registerSecurityOps(srv *mcp.Server, root string, caller *Caller) {
 		if err != nil {
 			return nil, err
 		}
-		return answerListFindings(q, a, now).plain()
+		return answerListFindings(q, a, now).Plain()
 	})
 
 	srv.Register(opDetectionStats, func(map[string]any) (any, error) {
@@ -510,7 +511,7 @@ func registerSecurityOps(srv *mcp.Server, root string, caller *Caller) {
 		if err != nil {
 			return nil, err
 		}
-		return answerDetectionStats(t).plain()
+		return answerDetectionStats(t).Plain()
 	})
 
 	srv.Register(opIncidentStatus, func(map[string]any) (any, error) {
@@ -518,7 +519,7 @@ func registerSecurityOps(srv *mcp.Server, root string, caller *Caller) {
 		if err != nil {
 			return nil, err
 		}
-		return answerIncidentStatus(s).plain()
+		return answerIncidentStatus(s).Plain()
 	})
 
 	srv.Register(opVulnPlan, func(map[string]any) (any, error) {
@@ -530,7 +531,7 @@ func registerSecurityOps(srv *mcp.Server, root string, caller *Caller) {
 		if err != nil {
 			return nil, err
 		}
-		return ans.plain()
+		return ans.Plain()
 	})
 
 	srv.Register(opReadFinding, func(a map[string]any) (any, error) {
@@ -647,24 +648,24 @@ func answerListFindings(q []finding.Finding, a map[string]any, now time.Time) *a
 	}
 	q = filterQueue(q, finding.State(state), finding.Kind(kind))
 	// Never absent: an empty queue has always been printed as [].
-	rows := &answer{list: true}
+	rows := ops.List()
 	for i, f := range q {
 		if i == top {
 			break
 		}
-		rows.items = append(rows.items, object().
-			with("ID", ours(f.ID)).
-			with("Title", outside(f.Title)).
-			with("Kind", ours(string(f.Kind))).
-			with("State", ours(string(f.State))).
-			with("Severity", ours(fmt.Sprint(uint8(f.Severity)))).
-			with("Entity", outside(f.Entity.String())).
-			with("Source", ours(f.Source)).
-			with("Why", ours(f.Why(now))).
-			with("Seen", ours(f.Seen)).
-			with("NeedsAPerson", ours(f.NeedsAPerson() != "")))
+		rows.Add(object().
+			With("ID", ours(f.ID)).
+			With("Title", outside(f.Title)).
+			With("Kind", ours(string(f.Kind))).
+			With("State", ours(string(f.State))).
+			With("Severity", ours(fmt.Sprint(uint8(f.Severity)))).
+			With("Entity", outside(f.Entity.String())).
+			With("Source", ours(f.Source)).
+			With("Why", ours(f.Why(now))).
+			With("Seen", ours(f.Seen)).
+			With("NeedsAPerson", ours(f.NeedsAPerson() != "")))
 	}
-	return object().with("findings", rows).with("total", ours(len(q)))
+	return object().With("findings", rows).With("total", ours(len(q)))
 }
 
 // findingAnswer is one finding as read_finding answers it. The agent
@@ -720,28 +721,28 @@ func (f findingAnswer) text() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "id: %v\ntitle: %v\nkind: %v\nstate: %v\n"+
 		"severity: %v\nsource: %v\nseen: %v\nwhy it ranks here: %v\n",
-		f.id.value, f.title.value, f.kind.value, f.state.value,
-		f.severity.value, f.source.value, f.seen.value, f.why.value)
-	if len(f.technique.items) > 0 {
-		names := make([]string, 0, len(f.technique.items))
-		for _, t := range f.technique.items {
-			names = append(names, fmt.Sprint(t.value))
+		f.id.Value(), f.title.Value(), f.kind.Value(), f.state.Value(),
+		f.severity.Value(), f.source.Value(), f.seen.Value(), f.why.Value())
+	if len(f.technique.Items()) > 0 {
+		names := make([]string, 0, len(f.technique.Items()))
+		for _, t := range f.technique.Items() {
+			names = append(names, fmt.Sprint(t.Value()))
 		}
 		fmt.Fprintf(&b, "att&ck: %s\n", strings.Join(names, ", "))
 	}
 	if f.decides != nil {
-		fmt.Fprintf(&b, "a person decides: %v\n", f.decides.value)
+		fmt.Fprintf(&b, "a person decides: %v\n", f.decides.Value())
 	}
 	if f.because != nil {
-		fmt.Fprintf(&b, "reason on record: %v\n", f.because.value)
+		fmt.Fprintf(&b, "reason on record: %v\n", f.because.Value())
 	}
 	b.WriteString("evidence:\n")
 	for _, e := range f.evidence {
 		fmt.Fprintf(&b, "- at %v from %v (tainted: %v)\n  %s\n  %v\n  %s\n",
-			e.at.value, e.from.value, e.tainted.value,
-			untrustedFence, e.text.value, untrustedFence)
+			e.at.Value(), e.from.Value(), e.tainted.Value(),
+			untrustedFence, e.text.Value(), untrustedFence)
 	}
-	fmt.Fprintf(&b, "entity (from the log, untrusted): %v\n", f.entity.value)
+	fmt.Fprintf(&b, "entity (from the log, untrusted): %v\n", f.entity.Value())
 	return b.String()
 }
 
@@ -749,24 +750,24 @@ func (f findingAnswer) text() string {
 // same names the text gives them.
 func (f findingAnswer) tree() *answer {
 	a := object().
-		with("id", f.id).with("title", f.title).with("kind", f.kind).
-		with("state", f.state).with("severity", f.severity).
-		with("source", f.source).with("seen", f.seen).
-		with("why_it_ranks_here", f.why)
-	if len(f.technique.items) > 0 {
-		a.with("attack", f.technique)
+		With("id", f.id).With("title", f.title).With("kind", f.kind).
+		With("state", f.state).With("severity", f.severity).
+		With("source", f.source).With("seen", f.seen).
+		With("why_it_ranks_here", f.why)
+	if len(f.technique.Items()) > 0 {
+		a.With("attack", f.technique)
 	}
 	if f.decides != nil {
-		a.with("a_person_decides", f.decides)
+		a.With("a_person_decides", f.decides)
 	}
 	if f.because != nil {
-		a.with("reason_on_record", f.because)
+		a.With("reason_on_record", f.because)
 	}
-	a.with("evidence", listOf(f.evidence, func(e evidenceAnswer) *answer {
-		return object().with("at", e.at).with("from", e.from).
-			with("tainted", e.tainted).with("text", e.text)
+	a.With("evidence", listOf(f.evidence, func(e evidenceAnswer) *answer {
+		return object().With("at", e.at).With("from", e.from).
+			With("tainted", e.tainted).With("text", e.text)
 	}))
-	return a.with("entity", f.entity)
+	return a.With("entity", f.entity)
 }
 
 // detectionFacts is what detection_stats answers from: each rule's record,
@@ -799,48 +800,48 @@ func answerDetectionStats(t detectionFacts) *answer {
 				rate*100, low*100, high*100)
 		}
 		r := object().
-			with("rule", ours(st.Rule)).with("ring", ours(string(st.Ring))).
-			with("findings", ours(st.Findings)).with("fired", ours(st.Fired)).
-			with("real", ours(st.Real)).with("false", ours(st.False)).
-			with("benign", ours(st.Benign)).with("undecided", ours(st.Undecided)).
-			with("last", ours(st.Last)).with("suppressed", ours(st.Suppressed))
+			With("rule", ours(st.Rule)).With("ring", ours(string(st.Ring))).
+			With("findings", ours(st.Findings)).With("fired", ours(st.Fired)).
+			With("real", ours(st.Real)).With("false", ours(st.False)).
+			With("benign", ours(st.Benign)).With("undecided", ours(st.Undecided)).
+			With("last", ours(st.Last)).With("suppressed", ours(st.Suppressed))
 		if st.NoisyEntity != "" {
-			r.with("noisy_entity", outside(st.NoisyEntity))
+			r.With("noisy_entity", outside(st.NoisyEntity))
 		}
 		if st.NoisyCount != 0 {
-			r.with("noisy_count", ours(st.NoisyCount))
+			r.With("noisy_count", ours(st.NoisyCount))
 		}
-		return r.with("useful", ours(useful))
+		return r.With("useful", ours(useful))
 	})
 	// The rules were collected by appending to a nil slice, so no rules has
 	// always printed as null, whatever the stats were.
-	rules.absent = len(t.Stats) == 0
+	rules.Absent(len(t.Stats) == 0)
 	return object().
-		with("proposals", listOf(t.Proposals, func(p detect.Proposal) *answer {
+		With("proposals", listOf(t.Proposals, func(p detect.Proposal) *answer {
 			// What and why are outside for every proposal, though a demotion
 			// or a promotion names only the rule and its numbers: a
 			// suppression names the entity a log gave, and the label is the
 			// field's, not the sentence's luck.
-			o := object().with("rule", ours(p.Rule)).with("do", ours(p.Do)).
-				with("what", outside(p.What)).with("why", outside(p.Why))
+			o := object().With("rule", ours(p.Rule)).With("do", ours(p.Do)).
+				With("what", outside(p.What)).With("why", outside(p.Why))
 			if p.Suppression != "" {
-				o.with("suppression", ours(p.Suppression))
+				o.With("suppression", ours(p.Suppression))
 			}
 			return o
 		})).
-		with("rules", rules).
-		with("suppressions", listOf(t.Suppressions, func(s detect.Suppression) *answer {
+		With("rules", rules).
+		With("suppressions", listOf(t.Suppressions, func(s detect.Suppression) *answer {
 			// The value is what an event carried — an account, an address —
 			// copied by the person who wrote the suppression, and so the
 			// log's words; owner and because are that person's own.
-			o := object().with("id", ours(s.ID)).with("rule", ours(s.Rule)).
-				with("field", ours(s.Field)).with("value", outside(s.Value)).
-				with("owner", ours(s.Owner)).with("because", ours(s.Because)).
-				with("by", ours(s.By))
+			o := object().With("id", ours(s.ID)).With("rule", ours(s.Rule)).
+				With("field", ours(s.Field)).With("value", outside(s.Value)).
+				With("owner", ours(s.Owner)).With("because", ours(s.Because)).
+				With("by", ours(s.By))
 			if s.Kind != "" {
-				o.with("kind", ours(string(s.Kind)))
+				o.With("kind", ours(string(s.Kind)))
 			}
-			return o.with("at", ours(s.At)).with("until", ours(s.Until))
+			return o.With("at", ours(s.At)).With("until", ours(s.Until))
 		}))
 }
 
@@ -943,38 +944,38 @@ func gatherIncidentStatus(root string, caller *Caller, now time.Time) (incidentF
 func answerIncidentStatus(s incidentFacts) *answer {
 	open := listOf(s.Open, func(o incidentRow) *answer {
 		a := object().
-			with("id", ours(o.ID)).with("title", outside(o.Title)).
-			with("grade", ours(o.Grade)).with("state", ours(o.State)).
-			with("declared", ours(o.Declared)).
-			with("regimes", listOf(o.Regimes, oursText))
+			With("id", ours(o.ID)).With("title", outside(o.Title)).
+			With("grade", ours(o.Grade)).With("state", ours(o.State)).
+			With("declared", ours(o.Declared)).
+			With("regimes", listOf(o.Regimes, oursText))
 		if len(o.Unfilled) > 0 {
-			a.with("roles_unfilled", listOf(o.Unfilled, oursText))
+			a.With("roles_unfilled", listOf(o.Unfilled, oursText))
 		}
-		a.with("duties", listOf(o.Duties, func(d dutyRow) *answer {
-			r := object().with("regime", ours(d.Regime)).
-				with("needs", ours(d.Needs)).with("started", ours(d.Started))
+		a.With("duties", listOf(o.Duties, func(d dutyRow) *answer {
+			r := object().With("regime", ours(d.Regime)).
+				With("needs", ours(d.Needs)).With("started", ours(d.Started))
 			if d.Due != "" {
-				r.with("due", ours(d.Due))
+				r.With("due", ours(d.Due))
 			}
-			r.with("says", ours(d.Says))
+			r.With("says", ours(d.Says))
 			if d.Late {
-				r.with("late", ours(true))
+				r.With("late", ours(true))
 			}
 			return r
 		}))
-		a.with("findings", ours(o.Findings))
+		a.With("findings", ours(o.Findings))
 		if len(o.Runs) > 0 {
-			a.with("playbooks", listOf(o.Runs, func(r playbookRow) *answer {
-				p := object().with("id", ours(r.ID)).with("approved", ours(r.Approved))
+			a.With("playbooks", listOf(o.Runs, func(r playbookRow) *answer {
+				p := object().With("id", ours(r.ID)).With("approved", ours(r.Approved))
 				if len(r.Left) > 0 {
-					p.with("steps_left", listOf(r.Left, oursText))
+					p.With("steps_left", listOf(r.Left, oursText))
 				}
 				return p
 			}))
 		}
 		return a
 	})
-	return object().with("closed", ours(s.Closed)).with("open", open)
+	return object().With("closed", ours(s.Closed)).With("open", open)
 }
 
 // vulnPlanFacts is what vuln_plan answers from. Loaded false is the store
@@ -1021,57 +1022,43 @@ func answerVulnPlan(p vulnPlanFacts) (*answer, error) {
 	}
 	t := p.Tally
 	return object().
-		with("advisories_loaded", ours(p.AdvisoriesAt)).
-		with("inventory_loaded", ours(p.InventoryAt)).
-		with("packages", ours(p.Packages)).
-		with("tally", object().
-			with("at", ours(t.At)).with("vulnerabilities", ours(t.Vulnerabilities)).
-			with("exposures", ours(t.Exposures)).with("exploited", ours(t.Exploited)).
-			with("expected", ours(t.Expected)).with("not_affected", ours(t.NotAffected)).
-			with("fixed", ours(t.Fixed)).with("accepted", ours(t.Accepted)).
-			with("investigating", ours(t.Investigating)).with("lapsed", ours(t.Lapsed))).
-		with("upgrades", listOf(p.Upgrades, func(u vuln.Upgrade) *answer {
+		With("advisories_loaded", ours(p.AdvisoriesAt)).
+		With("inventory_loaded", ours(p.InventoryAt)).
+		With("packages", ours(p.Packages)).
+		With("tally", object().
+			With("at", ours(t.At)).With("vulnerabilities", ours(t.Vulnerabilities)).
+			With("exposures", ours(t.Exposures)).With("exploited", ours(t.Exploited)).
+			With("expected", ours(t.Expected)).With("not_affected", ours(t.NotAffected)).
+			With("fixed", ours(t.Fixed)).With("accepted", ours(t.Accepted)).
+			With("investigating", ours(t.Investigating)).With("lapsed", ours(t.Lapsed))).
+		With("upgrades", listOf(p.Upgrades, func(u vuln.Upgrade) *answer {
 			a := object().
-				with("package", outside(u.Package)).
-				with("ecosystem", outside(u.Ecosystem)).
-				with("name", outside(u.Name)).
-				with("versions", listOf(u.Versions, outside))
+				With("package", outside(u.Package)).
+				With("ecosystem", outside(u.Ecosystem)).
+				With("name", outside(u.Name)).
+				With("versions", listOf(u.Versions, outside))
 			if u.To != "" {
-				a.with("to", outside(u.To))
+				a.With("to", outside(u.To))
 			}
 			if len(u.Clears) > 0 {
-				a.with("clears", listOf(u.Clears, outside))
+				a.With("clears", listOf(u.Clears, outside))
 			}
 			if len(u.Leaves) > 0 {
-				a.with("leaves", listOf(u.Leaves, func(l vuln.Left) *answer {
-					return object().with("id", outside(l.ID)).with("why", outside(l.Why))
+				a.With("leaves", listOf(u.Leaves, func(l vuln.Left) *answer {
+					return object().With("id", outside(l.ID)).With("why", outside(l.Why))
 				}))
 			}
 			if len(u.Into) > 0 {
-				a.with("into", listOf(u.Into, outside))
+				a.With("into", listOf(u.Into, outside))
 			}
-			a.with("assets", ours(u.Assets)).with("expected", ours(u.Expected))
+			a.With("assets", ours(u.Assets)).With("expected", ours(u.Expected))
 			if u.Exploited {
-				a.with("exploited", ours(true))
+				a.With("exploited", ours(true))
 			}
 			return a
 		})), nil
 }
 
-// fenced keeps untrusted text on one line and unable to close its fence.
-//
-// Clean runs before the fence tokens are replaced, in that order because
-// Clean folds the imitators — ＜＜＜, «««, ‹‹‹ — to the ASCII they imitate,
-// so a folded lookalike becomes a literal "<<<" and is then replaced like
-// any other. The other order would leave a ‹‹‹ that had been cleaned into
-// a fence the replacement never looked for. The invisible characters go
-// first for the same reason: "<<" + a zero-width space + "<" is three
-// runes to the eye and four to the bytes, and only the bytes were being
-// checked.
-func fenced(s string) string {
-	s = untrusted.Clean(s)
-	s = strings.ReplaceAll(s, "<<<", "‹‹‹")
-	s = strings.ReplaceAll(s, ">>>", "›››")
-	s = strings.Join(strings.Fields(s), " ")
-	return untrusted.Truncate(s, 2000)
-}
+// fenced is ops.Fence: untrusted text kept on one line and unable to close
+// its fence, the one way every face treats it.
+func fenced(s string) string { return ops.Fence(s) }

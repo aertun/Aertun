@@ -150,7 +150,7 @@ func TestCalibrateFitsOnVerifiedPeoplesVerdictsAndSigns(t *testing.T) {
 	if !strings.Contains(st.Predicate.Checks[0].Detail, "3 decision(s) recorded by anybody else were left out") {
 		t.Errorf("the labels check: %q", st.Predicate.Checks[0].Detail)
 	}
-	if err := cmdProof([]string{"verify", "--key", pub, cert}); err != nil {
+	if err := cmdProof("", []string{"verify", "--key", pub, cert}); err != nil {
 		t.Errorf("proof verify refused the certificate: %v", err)
 	}
 	found := false

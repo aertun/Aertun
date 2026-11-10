@@ -154,6 +154,8 @@ type Server struct {
 	// Findings is the finding register: what the producers recorded, with
 	// the audit log's decisions applied.
 	Findings *Findings
+	// Proving is the proving ground's operations (proving.go).
+	Proving *ProvingGround
 
 	// Workforce is the estate: what the company's tools say about its
 	// people and machines, joined and scored.
@@ -1030,6 +1032,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/findings/", s.handleFinding)
 	mux.HandleFunc("/findings/decide", s.handleFindingDecide)
 	mux.HandleFunc("/security/risk", s.handleRisk)
+	mux.HandleFunc("/proving/proofs", s.handleProofs)
+	mux.HandleFunc("/proving/proofs/keep", s.handleProofKeep)
+	mux.HandleFunc("/proving/proofs/", s.handleProof)
 	mux.HandleFunc("/security/indicators", s.handleIndicators)
 	mux.HandleFunc("/security/indicators/act", s.handleIndicatorsAct)
 	mux.HandleFunc("/security/cases", s.handleCases)

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/aertun/aertun/internal/audit"
 )
 
 // Every capability has to be reachable from the interface people actually use.
@@ -208,17 +210,11 @@ var coverage = map[string]surfaces{
 	},
 	// Proofs: a claim about a detection checked against evidence its author
 	// did not write, and signed whatever the verdict.
-	"proof": {
-		Why: "a proof is a file that carries its own signatures and is " +
-			"checked where the work is used — in CI, by a reviewer, by " +
-			"whoever was handed the rule; the screen worth building is the " +
-			"ledger of proofs per author, which arrives when agents submit " +
-			"claims through the store rather than the command line",
-		NoMCP: "the first cut signs with a key file named on the command " +
-			"line, and an MCP server must never hold a signing key on a " +
-			"caller's behalf; agents will submit claims to a queue the " +
-			"store's own key signs from, with the claim's author recorded",
-	},
+	// Proofs: made and checked on the command line, kept in the store and
+	// read on every face from one declaration (proofops.go). Making one
+	// signs with a key file, which stays on the command line; keeping one
+	// is a change, which the agent interface does not offer.
+	"proof": {GUI: "/proving/proofs", MCP: []string{"list_proofs", "read_proof"}},
 	// The context twin's recorder: the agent interface's answers, as of
 	// now, in one file under its digest.
 	"twin": {
@@ -693,6 +689,12 @@ func registeredOperations(t *testing.T) map[string]bool {
 		for _, m := range reOpName.FindAllStringSubmatch(readFile(t, file), -1) {
 			out[m[1]] = true
 		}
+	}
+	// Operations declared once in internal/ops reach the agent interface
+	// through registerOps, with no literal here to read: the server built
+	// over an empty store says which it offers.
+	for _, op := range buildMCP(t.TempDir(), &Caller{Name: "dana", Kind: audit.KindHuman}).Operations() {
+		out[op.Name] = true
 	}
 	return out
 }

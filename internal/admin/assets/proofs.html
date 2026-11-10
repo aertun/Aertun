@@ -1,0 +1,54 @@
+{{define "fact"}}{{.Text}}{{if .Outside}} <span class="tag tag-warn" title="Written outside Aertun: a rule's name or title chosen by whoever submitted it, which may be the model under test">untrusted</span>{{end}}{{end}}
+{{template "head" .}}
+<h1>Proofs</h1>
+{{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}
+{{if .Error}}<p class="notice bad" role="alert">{{.Error}}</p>{{end}}
+<p class="lead">Each proof is a claim about security work — a detection rule, a
+  model's threshold, another vendor's AI verdicts — checked against evidence the
+  work did not write, and signed. Refuted is as useful as proven: it names what
+  failed. Anybody can check one without this program.</p>
+
+<dl class="stats-row">{{range .Tiles}}<div{{if .Tone}} class="{{.Tone}}"{{end}}><dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{if .Note}}<dd class="wf-note">{{.Note}}</dd>{{end}}</div>{{end}}</dl>
+
+<nav class="chips" aria-label="Filter by kind">
+  <span class="chips-label">Kind</span>
+  <a href="/proving/proofs"{{if not .Kind}} class="on" aria-current="true"{{end}}>all</a>
+  {{range .Kinds}}<a href="/proving/proofs?kind={{.}}"{{if eq $.Kind .}} class="on" aria-current="true"{{end}}>{{.}}</a>{{end}}
+</nav>
+
+{{if .Rows}}<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Verdict</th><th scope="col">Claim</th><th scope="col">Kind</th><th scope="col">Kept</th><th scope="col">Signed by</th></tr></thead>
+  <tbody>{{range .Rows}}<tr>
+    {{if .Broken}}
+    <th scope="row"><span class="wf-word {{.Tone}}">no longer verifies</span></th>
+    <td>{{.Broken}}<br><span class="hint">{{.ID}}</span></td>
+    <td></td>
+    {{else}}
+    <th scope="row"><a href="/proving/proofs/{{.ID}}"><span class="wf-word {{.Tone}}">{{.Verdict}}</span></a></th>
+    <td>{{template "fact" .Claim}}<br><span class="hint">about {{template "fact" .Subject}}</span>{{if .Expires}}<br><span class="hint">{{if .Expired}}<span class="wf-word warning">expired</span> {{end}}in force until {{.Expires}}</span>{{end}}</td>
+    <td>{{.Kind}}</td>
+    {{end}}
+    <td>{{.KeptAt}}<br><span class="hint">{{.KeptBy}}, {{if eq .Origin "made-here"}}made here{{else}}handed in{{end}}</span></td>
+    <td><code>{{.KeyID}}</code></td>
+  </tr>{{end}}</tbody></table></div>
+<p class="hint">{{len .Rows}} of {{.Kept}} shown, newest first. A proof says the key
+  signed it; whether that key is one to believe is yours to judge, by its fingerprint.</p>
+{{else}}{{if .Kept}}<p>No proof of that kind is kept.</p>{{else}}
+<p>No proofs are kept yet. <code>aertun verdict prove</code> and
+  <code>aertun analyst calibrate</code> keep the proofs they make; a proof made
+  elsewhere is kept below or with <code>aertun proof keep FILE --public-key KEY</code>.</p>{{end}}{{end}}
+
+<h2>Keep a proof made elsewhere</h2>
+<form method="post" action="/proving/proofs/keep" enctype="multipart/form-data">
+  <p class="hint">In CI, on another deployment, by <code>aertun proof detection</code>.
+    It is checked against the public key you give before it is kept, and again every
+    time it is read.</p>
+  <div class="grid2">
+  <p><label>The proof <input type="file" name="envelope_file" accept=".json,application/json"></label>
+    <br><label>or paste it <textarea name="envelope" rows="4" maxlength="1048576"></textarea></label></p>
+  <p><label>Its public key <input type="file" name="public_key_file" accept=".json,application/json"></label>
+    <br><label>or paste it <textarea name="public_key" rows="4" maxlength="65536"></textarea></label></p>
+  </div>
+  <p><button type="submit">Check, and keep</button></p>
+</form>
+{{template "foot" .}}

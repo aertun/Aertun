@@ -376,6 +376,10 @@ func verdictProve(root string, args []string) error {
 			return err
 		}
 	}
+	if pubDoc, err := json.Marshal(k.PublicKey()); err == nil {
+		// Kept in the store as well, so the proving ground shows it.
+		keepMade(root, env, pubDoc, caller.Name)
+	}
 	ev := st.Predicate.Verdicts
 	if err := recordE(root, audit.Record{Action: "verdict.proved", Resource: "/verdicts",
 		Outcome: audit.Success, Principal: caller.Name, Kind: caller.Kind, Model: caller.Model,

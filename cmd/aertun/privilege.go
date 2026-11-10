@@ -213,6 +213,10 @@ var commandNeeds = map[string]need{
 	// A proof checks files the caller named against a corpus the caller
 	// named and signs with a key the caller named: it opens no store,
 	// contacts nobody and spends nothing, the wind tunnel's weight.
+	// Reading proofs, and verifying one, is reading. Keeping one adds to what
+	// the store shows as proven — the weight of importing intelligence — and
+	// the operation asks for that itself before it runs (internal/proving),
+	// because a row here may only narrow its parent.
 	"proof": {action: auth.ActView},
 	// A recorded case is the security queue and its evidence copied out of
 	// the store into a file, which is what listing the queue on the command

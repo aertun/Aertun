@@ -49,7 +49,7 @@ func TestProofDetectionSignsAndVerifyGates(t *testing.T) {
 	buf := windtunnelOutput(t)
 	dir, key, rule, corpus := proofFiles(t)
 	out, pub := filepath.Join(dir, "rule.proof.json"), filepath.Join(dir, "pub.json")
-	if err := cmdProof([]string{"detection", "--rule", rule, "--corpus", corpus,
+	if err := cmdProof("", []string{"detection", "--rule", rule, "--corpus", corpus,
 		"--key", key, "--public-key", pub, "--out", out, "--by", "agent:drafter"}); err != nil {
 		t.Fatalf("a rule that holds: %v\n%s", err, buf)
 	}
@@ -60,7 +60,7 @@ func TestProofDetectionSignsAndVerifyGates(t *testing.T) {
 		t.Errorf("the proof was not written 0600: %v %v", info, err)
 	}
 	buf.Reset()
-	if err := cmdProof([]string{"verify", "--key", pub, "--subject", rule, out}); err != nil {
+	if err := cmdProof("", []string{"verify", "--key", pub, "--subject", rule, out}); err != nil {
 		t.Fatalf("verify: %v\n%s", err, buf)
 	}
 	if !strings.Contains(buf.String(), "both signatures hold") {
@@ -69,7 +69,7 @@ func TestProofDetectionSignsAndVerifyGates(t *testing.T) {
 	// A proof is about the bytes that were reviewed, and no others.
 	other := filepath.Join(dir, "other.json")
 	_ = os.WriteFile(other, []byte(`{"id":"something.else"}`), 0o600)
-	if err := cmdProof([]string{"verify", "--key", pub, "--subject", other, out}); err == nil ||
+	if err := cmdProof("", []string{"verify", "--key", pub, "--subject", other, out}); err == nil ||
 		!strings.Contains(err.Error(), "is not what this proof is about") {
 		t.Errorf("a proof verified against a file it is not about: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestProofDetectionSignsAndVerifyGates(t *testing.T) {
 	if err := writeJSON(tampered, env); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmdProof([]string{"verify", "--key", pub, tampered}); err == nil {
+	if err := cmdProof("", []string{"verify", "--key", pub, tampered}); err == nil {
 		t.Error("an edited proof verified")
 	}
 }
@@ -96,7 +96,7 @@ func TestProofWithoutACorpusIsSignedAndRefusedByTheGate(t *testing.T) {
 	windtunnelOutput(t)
 	dir, key, rule, _ := proofFiles(t)
 	out := filepath.Join(dir, "p.json")
-	err := cmdProof([]string{"detection", "--rule", rule, "--key", key, "--out", out})
+	err := cmdProof("", []string{"detection", "--rule", rule, "--key", key, "--out", out})
 	if err == nil || !strings.Contains(err.Error(), "inconclusive") {
 		t.Errorf("an uncorroborated rule passed the gate: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestProofRefusesAKeyOthersCanRead(t *testing.T) {
 	if err := os.Chmod(key, 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmdProof([]string{"detection", "--rule", rule, "--key", key}); err == nil ||
+	if err := cmdProof("", []string{"detection", "--rule", rule, "--key", key}); err == nil ||
 		!strings.Contains(err.Error(), "readable by others") {
 		t.Errorf("a group-readable signing key was used: %v", err)
 	}
@@ -122,11 +122,11 @@ func TestProofRefusesAKeyOthersCanRead(t *testing.T) {
 
 func TestProofVerifyNeedsAKeyItWasHanded(t *testing.T) {
 	windtunnelOutput(t)
-	if err := cmdProof([]string{"verify", "some.proof.json"}); err == nil ||
+	if err := cmdProof("", []string{"verify", "some.proof.json"}); err == nil ||
 		!strings.Contains(err.Error(), "never one the document supplies") {
 		t.Errorf("verify without a key: %v", err)
 	}
-	if err := cmdProof(nil); err == nil {
+	if err := cmdProof("", nil); err == nil {
 		t.Error("a bare proof command did something")
 	}
 }

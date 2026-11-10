@@ -292,20 +292,30 @@ func LoadPublicKey(path string) (KeyPublic, error) {
 	if err != nil {
 		return KeyPublic{}, err
 	}
+	pub, err := ParsePublicKey(body)
+	if err != nil {
+		return KeyPublic{}, fmt.Errorf("%s %w", path, err)
+	}
+	return pub, nil
+}
+
+// ParsePublicKey reads a published dual public key already in memory, under
+// the same bound and checks as a file: both halves, each the right length.
+func ParsePublicKey(body []byte) (KeyPublic, error) {
 	if len(body) > MaxPublicKeyFile {
-		return KeyPublic{}, fmt.Errorf("%s is larger than any public key file", path)
+		return KeyPublic{}, fmt.Errorf("is larger than any public key file")
 	}
 	var pub KeyPublic
 	if err := json.Unmarshal(body, &pub); err != nil {
-		return KeyPublic{}, fmt.Errorf("%s is not a public key file: %w", path, err)
+		return KeyPublic{}, fmt.Errorf("is not a public key file: %w", err)
 	}
 	if pub.Ed25519 == "" || pub.MLDSA65 == "" {
-		return KeyPublic{}, fmt.Errorf("%s carries only half a dual key. A "+
-			"verifier needs both halves: one of them is the half that "+
-			"survives whichever algorithm turns out to be broken", path)
+		return KeyPublic{}, fmt.Errorf("carries only half a dual key. A " +
+			"verifier needs both halves: one of them is the half that " +
+			"survives whichever algorithm turns out to be broken")
 	}
 	if _, _, err := pub.decode(); err != nil {
-		return KeyPublic{}, fmt.Errorf("%s: %w", path, err)
+		return KeyPublic{}, err
 	}
 	return pub, nil
 }
