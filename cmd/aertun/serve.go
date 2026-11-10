@@ -28,6 +28,7 @@ import (
 	"github.com/aertun/aertun/internal/listen"
 	"github.com/aertun/aertun/internal/logd"
 	"github.com/aertun/aertun/internal/oidc"
+	"github.com/aertun/aertun/internal/proving"
 	"github.com/aertun/aertun/internal/remind"
 	"github.com/aertun/aertun/internal/saml"
 	"github.com/aertun/aertun/internal/throttle"
@@ -130,6 +131,15 @@ func cmdServe(root string, args []string) error {
 			Detail: detail,
 		})
 	}
+	// The proving ground's operations, the same ones the command line and
+	// the agent interface run; its record fails when it cannot be written,
+	// so a change made there is never made without one.
+	srv.Proving = &admin.ProvingGround{Ops: proving.Ops(root),
+		Record: func(by, action, resource string, detail map[string]string) error {
+			return recordE(root, audit.Record{Action: action, Resource: resource,
+				Outcome: audit.Success, Principal: by, Kind: audit.KindHuman, Verified: true,
+				Detail: detail})
+		}}
 	srv.Settings = &admin.Settings{
 		Load: func() (*config.Config, error) { return loadConfig(root) },
 		Save: func(c *config.Config) error { return saveConfig(root, c) },

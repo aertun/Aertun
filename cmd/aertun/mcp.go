@@ -24,6 +24,7 @@ import (
 	"github.com/aertun/aertun/internal/find"
 	"github.com/aertun/aertun/internal/macaroon"
 	"github.com/aertun/aertun/internal/mcp"
+	"github.com/aertun/aertun/internal/proving"
 )
 
 // The MCP surface is the third interface onto the same store, and every
@@ -445,6 +446,7 @@ func buildMCP(root string, caller *Caller) *mcp.Server {
 
 	registerSecurityOps(srv, root, caller)
 	registerEstateOps(srv, root, caller)
+	registerOps(srv, proving.Ops(root), root, caller)
 
 	return srv
 }

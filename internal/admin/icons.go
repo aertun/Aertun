@@ -39,7 +39,7 @@ var iconSymbol = map[string]string{
 	"people": "person", "members": "group", "boards": "forum", "provisioning": "sync", "sso": "badge", "access": "key", "passkeys": "passkey", "apps": "apps", "memory": "psychology", "fleet": "lan",
 	"integrations": "extension", "models": "memory", "settings": "settings",
 	"find": "search", "start": "rocket_launch", "playground": "api",
-	"profile": "account_circle",
+	"profile": "account_circle", "proofs": "verified",
 }
 
 var iconPath = func() map[string]string {
@@ -133,7 +133,7 @@ func toneIcon(tone string) string {
 // so a section never looks like one of its screens. The file is
 // section-<slug>.svg.
 var sectionSymbol = map[string]string{
-	"Operations": "crisis_alert", "Investigation": "manage_search", "Detection": "policy",
+	"Proving ground": "labs", "Operations": "crisis_alert", "Investigation": "manage_search", "Detection": "policy",
 	"Exposure": "gpp_maybe", "Administration": "admin_panel_settings", "Reference": "menu_book",
 }
 

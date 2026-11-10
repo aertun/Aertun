@@ -9,6 +9,6 @@ Each file is named after the screen it stands for, as keyed in
 used unmodified, and only their single `path` is read.
 
 The `section-*.svg` files stand for the navigation's sections on the rail
-the menu collapses to (article, send, verified_user, policy,
+the menu collapses to (labs for the proving ground, then article, send, verified_user, policy,
 admin_panel_settings and menu_book), named after each section as
 `sectionSymbol` in `icons.go` keys it.

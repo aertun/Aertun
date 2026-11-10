@@ -104,6 +104,19 @@ A calibration certificate for the AI analyst's threshold (`aertun analyst
 calibrate`, below) is a proof of the same shape, and `proof verify` checks
 it the same way.
 
+**Kept proofs, on every face.** The proofs `verdict prove` and `analyst
+calibrate` make are kept in the store, and one made elsewhere is kept with
+`aertun proof keep FILE --public-key KEY` once it verifies against that key.
+The console's first section, **Proving ground**, lists them on its **Proofs**
+screen; `aertun proof list | show` and the agent interface's `list_proofs` and
+`read_proof` are the same operations, declared once (`internal/ops`): each asks
+whether the caller may, refuses a change asked for by an agent, and records a
+change before making it. Every value an operation answers says whether
+somebody outside Aertun could have written it — a detection proof's rule name
+is the submitter's — and the console marks it where the agent interface labels
+it. A kept proof is verified again whenever it is read, so one edited
+afterwards shows as no longer verifying.
+
 **Another vendor's AI, scored on your decisions.** `aertun verdict import
 FILE --source NAME` takes a product's export of what its AI said about each
 alert (JSON lines or CSV with the columns `alert`, `verdict`, `at` and

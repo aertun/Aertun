@@ -103,6 +103,7 @@ Detecting and deciding
   aertun windtunnel run --sigma DIR [--mutate N] [--out F]   replay agent attacks against your own Sigma rules: the primary mode
   aertun windtunnel run --score reference | list-scenarios | preflight | scorecard | diff OLD NEW | verify   the shipped pack, self-graded; signed only in CI; diff is the CI gate
   aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
+  aertun proof list [--kind K] | show ID | keep FILE --public-key F   the proofs kept here, as the console's Proofs screen and the agent interface show them
   aertun twin record --out FILE | help     what the agent interface would answer now, in one file under its digest, for aertun mcp --twin to replay
   aertun forge export --key F --out F [--public-key F] | verify FILE --key F [--log]   what the analyst saw and answered, and how a person ruled, as signed episodes for training
   aertun verdict import FILE --source NAME | list | prove --source NAME --since DATE --tolerance R --key F   another vendor's AI verdicts scored against people's decisions, signed
@@ -359,7 +360,7 @@ func main() {
 	case "windtunnel":
 		err = cmdWindtunnel(root, cmdArgs)
 	case "proof":
-		err = cmdProof(cmdArgs)
+		err = cmdProof(root, cmdArgs)
 	case "twin":
 		err = cmdTwin(root, cmdArgs)
 	case "forge":

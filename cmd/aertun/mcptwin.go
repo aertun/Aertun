@@ -8,8 +8,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aertun/aertun/internal/auth"
 	"github.com/aertun/aertun/internal/finding"
 	"github.com/aertun/aertun/internal/mcp"
+	"github.com/aertun/aertun/internal/ops"
+	"github.com/aertun/aertun/internal/proofstore"
+	"github.com/aertun/aertun/internal/proving"
 	"github.com/aertun/aertun/internal/twin"
 )
 
@@ -48,6 +52,10 @@ type twinCase struct {
 	Incidents  twinPart[incidentFacts]  `json:"incident_status"`
 	Vulns      twinPart[vulnPlanFacts]  `json:"vuln_plan"`
 	Estate     twinPart[estateFacts]    `json:"estate_summary"`
+	// Proofs are the proofs kept in the store as they were read when the
+	// case was recorded, each checked then: what list_proofs and
+	// read_proof answer from, through the same operations (internal/proving).
+	Proofs twinPart[proving.Recorded] `json:"proofs"`
 }
 
 // twinPart is what one operation's gather came back with when the case was
@@ -108,6 +116,8 @@ func recordTwin(root string, caller *Caller, now time.Time) (twinCase, map[strin
 	c.Vulns = keepPart(opVulnPlan.Name, omitted, v, err)
 	e, err := gatherEstateSummary(root, caller, now)
 	c.Estate = keepPart(opEstateSummary.Name, omitted, e, err)
+	p, err := gatherProofs(root, caller)
+	c.Proofs = keepPart("list_proofs", omitted, p, err)
 	return c, omitted, nil
 }
 
@@ -170,9 +180,9 @@ func buildTwin(c *twinCase, digest string) *mcp.Server {
 				return nil, err
 			}
 			return object().
-				with("snapshot", ours(digest)).
-				with("recorded", ours(c.Recorded)).
-				with("answer", ans).labelled()
+				With("snapshot", ours(digest)).
+				With("recorded", ours(c.Recorded)).
+				With("answer", ans).Labelled()
 		}
 	}
 	srv.Register(opListFindings, reply(func(a map[string]any) (*answer, error) {
@@ -201,6 +211,30 @@ func buildTwin(c *twinCase, digest string) *mcp.Server {
 			func(f estateFacts) (*answer, error) { return answerEstateSummary(f), nil })
 	}))
 
+	// The proving ground's reads, as the agent interface offers them, run by
+	// the same operations over the proofs the case recorded.
+	reads := proving.ReadOps(nil)
+	for _, op := range reads.Ops() {
+		mop, ok := mcpOperation(op)
+		if !ok {
+			continue
+		}
+		name := op.Name
+		srv.Register(mop, reply(func(a map[string]any) (*answer, error) {
+			return c.Proofs.replay(name, digest, func(rec proving.Recorded) (*answer, error) {
+				raw, err := mcpArgs(a)
+				if err != nil {
+					return nil, &mcp.Refusal{Reason: err.Error()}
+				}
+				ans, err := proving.ReadOps(rec).Invoke(name, twinCaller{}, raw, c.Recorded)
+				if ops.IsRefusal(err) {
+					return nil, &mcp.Refusal{Reason: err.Error()}
+				}
+				return ans, err
+			})
+		}))
+	}
+
 	srv.Register(opFind, func(map[string]any) (any, error) {
 		return nil, &mcp.Refusal{Reason: "find searches this program's " +
 			"screens, not the store, so a replay of a recorded case has no " +
@@ -213,4 +247,30 @@ func buildTwin(c *twinCase, digest string) *mcp.Server {
 			c.Recorded.Format(time.RFC3339))}
 	})
 	return srv
+}
+
+// gatherProofs reads the kept proofs for whoever records a case, through the
+// gate list_proofs applies on the agent interface: a recorder who may not
+// read them records none, and the twin refuses the reads in turn.
+func gatherProofs(root string, caller *Caller) (proving.Recorded, error) {
+	if err := authoriseUnder(root, caller, auth.ActView, auth.AreaSecurity); err != nil {
+		return nil, &mcp.Refusal{Reason: err.Error()}
+	}
+	all, err := proofstore.List(root)
+	if err != nil {
+		return nil, err
+	}
+	return proving.Recorded(all), nil
+}
+
+// twinCaller is whoever asks the twin. What they may read was decided when
+// the case was recorded, so every read is allowed; they are an agent, and a
+// replay records nothing.
+type twinCaller struct{}
+
+func (twinCaller) Allowed(auth.Action, string) error { return nil }
+func (twinCaller) Agent() bool                       { return true }
+func (twinCaller) Name() string                      { return "twin" }
+func (twinCaller) Record(string, map[string]string) error {
+	return errors.New("a replay records nothing")
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/aertun/aertun/internal/detect"
 	"github.com/aertun/aertun/internal/pack"
 	"github.com/aertun/aertun/internal/proof"
+	"github.com/aertun/aertun/internal/proving"
 )
 
 // Proofs: a claim about security work, checked by a program, signed.
@@ -32,17 +33,33 @@ import (
 // Like the wind tunnel, neither subcommand opens the store: the inputs are
 // files the caller named, the key is a file the caller named, and the
 // output is a file anybody can check without this deployment.
-func cmdProof(args []string) error {
+//
+// `proof list`, `proof show` and `proof keep` are the proving ground's
+// operations (proofops.go), the same ones the console and the agent
+// interface run: they read and add to the proofs kept in the store.
+func cmdProof(root string, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("proof needs detection or verify")
+		return fmt.Errorf("proof needs detection, verify, list, show or keep")
 	}
 	switch args[0] {
 	case "detection":
 		return proofDetection(args[1:])
 	case "verify":
 		return proofVerify(args[1:])
+	case "list":
+		return runOpCommand(root, proving.Ops(root), "list_proofs", args[1:], humanProofs)
+	case "show":
+		return runOpCommand(root, proving.Ops(root), "read_proof", args[1:], humanProof)
+	case "keep":
+		return runOpCommand(root, proving.Ops(root), "keep_proof", args[1:], func(a *answer) string {
+			if a.Get("already_kept").Value() == true {
+				return "already kept, as " + a.Get("id").Text()
+			}
+			return "kept, as " + a.Get("id").Text() + ": " + strings.ToUpper(a.Get("verdict").Text()) +
+				" " + a.Get("kind").Text() + " proof"
+		})
 	default:
-		return fmt.Errorf("unknown proof command %q; try detection or verify", args[0])
+		return fmt.Errorf("unknown proof command %q; try detection, verify, list, show or keep", args[0])
 	}
 }
 

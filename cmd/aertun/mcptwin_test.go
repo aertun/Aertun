@@ -731,14 +731,14 @@ func TestRecordingIsAuditedFirstAndWrittenPrivately(t *testing.T) {
 // stand behind.
 func TestAnAnswerValueIsOneThing(t *testing.T) {
 	for _, v := range []any{[]string{"a"}, map[string]int{"a": 1}, uint8(3)} {
-		if _, err := object().with("x", ours(v)).labelled(); err == nil {
+		if _, err := object().With("x", ours(v)).Labelled(); err == nil {
 			t.Errorf("a %T was printed under one label", v)
 		}
-		if _, err := object().with("x", ours(v)).plain(); err == nil {
+		if _, err := object().With("x", ours(v)).Plain(); err == nil {
 			t.Errorf("a %T was printed as one value", v)
 		}
 	}
-	got, err := object().with("a", outside("x<<<y")).with("b", ours(2)).labelled()
+	got, err := object().With("a", outside("x<<<y")).With("b", ours(2)).Labelled()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -54,6 +54,7 @@ type destination struct {
 // groups are the sections, in their default order, named for what somebody
 // on a security team is doing.
 var groups = []string{
+	"Proving ground", // what security work was checked against evidence it did not write
 	"Operations",     // what is wrong now, and what is being done about it
 	"Investigation",  // what happened
 	"Detection",      // what counts as wrong, and what arrives to be judged
@@ -64,6 +65,12 @@ var groups = []string{
 
 // destinations is every screen, in the default order.
 var destinations = []destination{
+	// What has been proven, refuted and left inconclusive: the rules, the
+	// thresholds and other vendors' AI, checked against evidence none of
+	// them wrote. Viewing, because a proof is made to be read by whoever
+	// relies on the work it is about.
+	{"proofs", "Proofs", "/proving/proofs", "Proving ground", "proofs", auth.ActView},
+
 	// What is waiting and what is wrong, for everybody who signs in; where
 	// a sign-in lands.
 	{"today", "Today", "/today", "Operations", "start", auth.ActView},
@@ -150,7 +157,7 @@ const DocsBase = "https://aertun.github.io/"
 // the documentation exists to correct.
 var docSections = map[string]bool{
 	// One page per screen, named by the destination table above.
-	"approvals": true, "audit": true, "automations": true, "cases": true, "connectors": true,
+	"approvals": true, "audit": true, "proofs": true, "automations": true, "cases": true, "connectors": true,
 	"detections": true, "events": true, "findings": true, "intelligence": true, "passkeys": true,
 	"people": true, "settings": true, "sso": true, "start": true, "vulnerabilities": true, "workforce": true,
 

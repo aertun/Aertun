@@ -43,7 +43,7 @@ func registerEstateOps(srv *mcp.Server, root string, caller *Caller) {
 		if err != nil {
 			return nil, err
 		}
-		return answerEstateSummary(f).plain()
+		return answerEstateSummary(f).Plain()
 	})
 }
 
@@ -132,24 +132,24 @@ func gatherEstateSummary(root string, caller *Caller, now time.Time) (estateFact
 func answerEstateSummary(f estateFacts) *answer {
 	count := func(n int) *answer { return ours(n) }
 	a := object().
-		with("areas", byKey(f.Areas, count)).
-		with("bands", byKey(f.Bands, count)).
-		with("checks_not_run", byKey(f.Skipped, oursText)).
-		with("findings_by_check", byKey(f.ByCheck, count)).
-		with("leavers_with_live_devices", ours(f.Leavers)).
-		with("machines", ours(f.Machines)).
-		with("mean", ours(f.Mean)).
-		with("people", ours(f.People)).
-		with("people_in_two_or_more_tools", ours(f.Joined)).
-		with("scored", ours(f.Scored)).
-		with("tools", listOf(f.Tools, func(t estateTool) *answer {
-			return object().with("name", ours(t.Name)).
-				with("read_at", ours(t.ReadAt)).with("complete", ours(t.Complete))
+		With("areas", byKey(f.Areas, count)).
+		With("bands", byKey(f.Bands, count)).
+		With("checks_not_run", byKey(f.Skipped, oursText)).
+		With("findings_by_check", byKey(f.ByCheck, count)).
+		With("leavers_with_live_devices", ours(f.Leavers)).
+		With("machines", ours(f.Machines)).
+		With("mean", ours(f.Mean)).
+		With("people", ours(f.People)).
+		With("people_in_two_or_more_tools", ours(f.Joined)).
+		With("scored", ours(f.Scored)).
+		With("tools", listOf(f.Tools, func(t estateTool) *answer {
+			return object().With("name", ours(t.Name)).
+				With("read_at", ours(t.ReadAt)).With("complete", ours(t.Complete))
 		}))
 	if f.TrendRead {
-		a.with("trend", listOf(f.Trend, func(d estateDay) *answer {
-			return object().with("date", ours(d.Date)).with("mean", ours(d.Mean)).
-				with("high_or_critical", ours(d.AtRisk))
+		a.With("trend", listOf(f.Trend, func(d estateDay) *answer {
+			return object().With("date", ours(d.Date)).With("mean", ours(d.Mean)).
+				With("high_or_critical", ours(d.AtRisk))
 		}))
 	}
 	return a

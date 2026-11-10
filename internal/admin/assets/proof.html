@@ -1,0 +1,45 @@
+{{template "head" .}}
+<p><a href="/proving/proofs">Proofs</a></p>
+{{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}
+{{if .Broken}}
+<h1>A proof that no longer verifies</h1>
+<p class="notice bad">{{.Broken}}. What it now says is not shown: a kept proof is
+  only read once it verifies again.</p>
+<table><tbody>
+  <tr><th scope="row">Id</th><td><code>{{.ID}}</code></td></tr>
+  <tr><th scope="row">Kept</th><td>{{.KeptAt}} by {{.KeptBy}}</td></tr>
+</tbody></table>
+{{else}}
+<h1><span class="wf-word {{.Tone}}">{{.Verdict}}</span> {{.Kind}} proof</h1>
+<p class="lead">{{template "fact" .Claim}}</p>
+
+<h2>Checks</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">What it found</th></tr></thead>
+  <tbody>{{range .Checks}}<tr>
+    <th scope="row">{{.Name}}</th>
+    <td>{{if .Passed}}<span class="wf-word good">passed</span>{{else}}<span class="wf-word serious">failed</span>{{end}}</td>
+    <td>{{template "fact" .Detail}}{{if .Failures}}<ul>{{range .Failures}}<li>{{template "fact" .}}</li>{{end}}</ul>{{end}}</td>
+  </tr>{{end}}</tbody></table></div>
+
+{{if or .Numbers .OutsideEvidence}}<h2>Evidence</h2>
+<table><tbody>{{range .Numbers}}<tr><th scope="row">{{.Label}}</th><td>{{.Value}}</td></tr>{{end}}
+{{range .OutsideEvidence}}<tr><td colspan="2">{{template "fact" .}}</td></tr>{{end}}</tbody></table>{{end}}
+
+{{if .Materials}}<h2>What it read</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Material</th><th scope="col">sha256</th><th scope="col">Entries</th></tr></thead>
+  <tbody>{{range .Materials}}<tr><th scope="row">{{template "fact" .Name}}</th><td><code>{{.SHA256}}</code></td><td>{{.Entries}}</td></tr>{{end}}</tbody></table></div>{{end}}
+
+<h2>Who says so</h2>
+<table><tbody>
+  <tr><th scope="row">Subject</th><td>{{template "fact" .Subject}}</td></tr>
+  <tr><th scope="row">Verified</th><td>{{.VerifiedAt}}, by {{.Verifier}}</td></tr>
+  <tr><th scope="row">Signed by key</th><td><code>{{.KeyID}}</code></td></tr>
+  <tr><th scope="row">Kept</th><td>{{.KeptAt}} by {{.KeptBy}}, {{if eq .Origin "made-here"}}made here{{else}}handed in{{end}}</td></tr>
+  <tr><th scope="row">Id</th><td><code>{{.ID}}</code></td></tr>
+</tbody></table>
+<p class="hint">Check it anywhere with <code>aertun proof verify FILE --key KEY</code>, or with
+  stock DSSE tooling against its Ed25519 half.</p>
+{{end}}
+{{template "foot" .}}
