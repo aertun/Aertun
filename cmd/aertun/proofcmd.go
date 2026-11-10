@@ -193,6 +193,8 @@ func summary(st *proof.Statement) map[string]any {
 		out["detection"] = st.Predicate.Detection
 	case st.Predicate.Calibration != nil:
 		out["calibration"] = st.Predicate.Calibration
+	case st.Predicate.Verdicts != nil:
+		out["verdicts"] = st.Predicate.Verdicts
 	}
 	return out
 }
@@ -225,6 +227,12 @@ func describe(st *proof.Statement) string {
 			c.Delta, c.Candidates, c.Cases, c.Real)
 		fmt.Fprintf(&b, "  binds model %s, template %s…, family %s; expires %s",
 			c.Model, c.Template[:12], c.Family, c.Expires)
+	}
+	if v := p.Verdicts; v != nil {
+		fmt.Fprintf(&b, "  evidence: %d of %d closure(s) false, between %.4f and %.4f, against %g; "+
+			"agreement %d of %d; abstained on %d of %d alert(s); labels %s",
+			v.FalseClosures.K, v.FalseClosures.N, v.FalseClosures.Lower, v.FalseClosures.Upper,
+			v.Tolerance, v.Agreement.K, v.Agreement.N, v.Abstentions.K, v.Abstentions.N, v.Labels)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

@@ -162,6 +162,12 @@ type Evidence struct {
 	// Ref points into the tamper-evident record where one exists — an audit
 	// entry hash, an object id. Empty when the evidence is only prose.
 	Ref string `json:"ref,omitempty"`
+	// Alert is the id another product gave the alert this evidence came
+	// from, when the event was one (telemetry.AlertField): what joins a
+	// vendor's AI verdict on that alert to the decision a person made here.
+	// Its own field, never Ref, so that a pointer into this program's own
+	// record can never be read as somebody else's alert.
+	Alert string `json:"alert,omitempty"`
 	// Tainted marks evidence derived from attacker-controlled input.
 	//
 	// Log text is written by whoever can reach the log, which on an

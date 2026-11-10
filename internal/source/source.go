@@ -91,6 +91,12 @@ type Source struct {
 	// is reassigned and an identifier is not.
 	Person string `json:"person,omitempty"`
 
+	// Alert is the path to the platform's own id for the alert, when the
+	// records are alerts another product raised. It is what lets a vendor's
+	// AI verdict on an alert be joined to a person's decision on the finding
+	// the alert raised here (internal/verdict).
+	Alert string `json:"alert,omitempty"`
+
 	Message string `json:"message,omitempty"`
 	// Outcome is a path whose value says whether the action succeeded.
 	//
@@ -217,7 +223,7 @@ func (s Source) Validate() error {
 	}
 	wanted := map[string]bool{s.Time: true}
 	for _, p := range []string{s.Actor, s.Target, s.Device, s.Message,
-		s.Outcome, s.From} {
+		s.Outcome, s.From, s.Alert} {
 		if p != "" {
 			wanted[p] = true
 		}
@@ -339,6 +345,14 @@ func (s Source) Map(doc any) (telemetry.Event, []Miss) {
 			// After Keep, so a kept field that happens to be called
 			// person cannot stand in for it.
 			e.Raw[PersonField] = v
+		}
+	}
+	// Whatever a kept field called alert said is not the alert's id: only
+	// the path the mapping names as Alert is, and only in an id's shape.
+	delete(e.Raw, telemetry.AlertField)
+	if s.Alert != "" {
+		if v := strings.TrimSpace(connector.At(doc, s.Alert)); telemetry.ValidAlertID(v) {
+			e.Raw[telemetry.AlertField] = v
 		}
 	}
 	return e, nil

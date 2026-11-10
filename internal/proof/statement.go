@@ -64,6 +64,9 @@ const (
 	// rule. Versioned in the URI, so a change to what it says is a new
 	// type rather than a reinterpretation of the old one.
 	PredicateDetection = "https://aertun.github.io/proof/detection/v1"
+	// PredicateVerdicts is the predicate of a proof about another vendor's
+	// AI verdicts, scored against people's dispositions (verdicts.go).
+	PredicateVerdicts = "https://aertun.github.io/proof/verdicts/v1"
 )
 
 // Verdict is what the verifier concluded.
@@ -120,6 +123,9 @@ type Predicate struct {
 	// Calibration is set on a calibration certificate, and holds the
 	// binding, the counts and the bound.
 	Calibration *CalibrationEvidence `json:"calibration,omitempty"`
+	// Verdicts is set on a verdicts proof, and holds the score with the
+	// counts behind every rate.
+	Verdicts *VerdictsEvidence `json:"verdicts,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -240,7 +246,7 @@ func (s *Statement) Validate() error {
 func (s *Statement) validateEvidence() error {
 	p := s.Predicate
 	kinds := 0
-	for _, set := range []bool{p.Detection != nil, p.Calibration != nil} {
+	for _, set := range []bool{p.Detection != nil, p.Calibration != nil, p.Verdicts != nil} {
 		if set {
 			kinds++
 		}
@@ -256,6 +262,11 @@ func (s *Statement) validateEvidence() error {
 			return fmt.Errorf("a calibration certificate carries calibration evidence and no other")
 		}
 		return p.Calibration.validate(s)
+	case PredicateVerdicts:
+		if p.Verdicts == nil || kinds != 1 {
+			return fmt.Errorf("a verdicts proof carries verdicts evidence and no other")
+		}
+		return p.Verdicts.validate(s)
 	default:
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}

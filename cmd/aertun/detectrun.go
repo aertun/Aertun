@@ -286,6 +286,7 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 				Trial:     rings[p.ID].Ring == detect.Trial,
 				Evidence: []finding.Evidence{{
 					At: e.Time, What: e.Message, Source: e.Source,
+					Alert: alertOf(e),
 					// Always. Log text is written by whoever can reach the
 					// log, including whoever is being detected.
 					Tainted: true,
@@ -465,4 +466,14 @@ func findingsCapability(root string) *admin.Findings {
 			return recordE(root, d.Record())
 		},
 	}
+}
+
+// alertOf is the id another product gave the alert an event is, when the
+// source's mapping named one: checked again for its shape here, because an
+// event can reach the store by paths other than a mapping.
+func alertOf(e telemetry.Event) string {
+	if v := e.Raw[telemetry.AlertField]; telemetry.ValidAlertID(v) {
+		return v
+	}
+	return ""
 }

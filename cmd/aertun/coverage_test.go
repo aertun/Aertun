@@ -232,6 +232,18 @@ var coverage = map[string]surfaces{
 			"thing under test choosing its test; the replay itself is served " +
 			"over MCP, by aertun mcp --twin",
 	},
+	// Another vendor's AI verdicts, scored against people's decisions.
+	"verdict": {
+		Why: "a verdicts proof is a signed file taken where it is used and " +
+			"checked there with proof verify; there is no screen for proofs " +
+			"yet, and the decisions it is scored against are on each " +
+			"finding's page",
+		NoMCP: "an agent importing verdicts would choose what a product is " +
+			"measured on, and proving signs with a key file named on the " +
+			"command line, which an MCP server must never hold on a " +
+			"caller's behalf",
+	},
+
 	// The forge: what the analyst saw and answered, and how a person ruled,
 	// as signed training episodes.
 	"forge": {
