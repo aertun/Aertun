@@ -400,6 +400,12 @@ func runTriage(ctx context.Context, root string, caller *Caller, limit int,
 		for k, v := range cost.tokens() {
 			rec.Detail[k] = v
 		}
+		// What the model was shown as counts and closed-set words, kept
+		// beside its answer so `forge export` can say exactly what it saw
+		// rather than rebuild it from a register that has moved on since.
+		for k, v := range sawDetail(state.Facts) {
+			rec.Detail[k] = v
+		}
 		if s.To != "" {
 			rec.Action = finding.ProposalAction
 			rec.Detail["to"] = string(s.To)
