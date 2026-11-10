@@ -1035,6 +1035,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/proving/proofs", s.handleProofs)
 	mux.HandleFunc("/proving/proofs/keep", s.handleProofKeep)
 	mux.HandleFunc("/proving/proofs/", s.handleProof)
+	mux.HandleFunc("/proving/claims", s.handleClaims)
 	mux.HandleFunc("/proving/adjudication", s.handleAdjudication)
 	mux.HandleFunc("/proving/adjudication/judge", s.handleAdjudicationJudge)
 	mux.HandleFunc("/proving/adjudication/", s.handleAdjudicationItem)

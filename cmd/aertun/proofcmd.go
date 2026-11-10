@@ -215,6 +215,8 @@ func summary(st *proof.Statement) map[string]any {
 		out["reconciliation"] = st.Predicate.Reconciliation
 	case st.Predicate.Adjudication != nil:
 		out["adjudication"] = st.Predicate.Adjudication
+	case st.Predicate.ClaimTest != nil:
+		out["claim"] = st.Predicate.ClaimTest
 	}
 	return out
 }
@@ -247,6 +249,10 @@ func describe(st *proof.Statement) string {
 			c.Delta, c.Candidates, c.Cases, c.Real)
 		fmt.Fprintf(&b, "  binds model %s, template %s…, family %s; expires %s",
 			c.Model, c.Template[:12], c.Family, c.Expires)
+	}
+	if v := p.ClaimTest; v != nil {
+		fmt.Fprintf(&b, "  evidence: card %s, %s %s %g: %d of %d, between %.4f and %.4f at %g; window closed: %v",
+			v.Name, v.Metric, v.Direction, v.Threshold, v.K, v.N, v.Low, v.High, v.Confidence, v.Closed)
 	}
 	if v := p.Adjudication; v != nil {
 		fmt.Fprintf(&b, "  evidence: blind sample %s, committed at audit entry %d: the AI's closures %d of %d "+

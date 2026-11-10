@@ -21,6 +21,7 @@ import (
 	"github.com/aertun/aertun/internal/atomicfile"
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/claim"
 	"github.com/aertun/aertun/internal/finding"
 	"github.com/aertun/aertun/internal/ops"
 	"github.com/aertun/aertun/internal/pack"
@@ -100,6 +101,7 @@ func sampleIDs(root string) ([]string, error) {
 func provingRegistry(root string) *ops.Registry {
 	r := proving.Ops(root)
 	addAdjudicationOps(r, root)
+	addClaimOps(r, root)
 	return r
 }
 
@@ -290,6 +292,8 @@ func adjudicateDraw(root string, args []string) error {
 	untilAt := fs.String("until", "", "the period's end, not included (default: now)")
 	per := fs.Int("per", 0, "how many closures to sample from each stratum; aertun adjudicate "+
 		"size says how many a target needs")
+	claimName := fs.String("claim", "", "the claim card this sample tests: it is drawn from what "+
+		"arrived after the card was registered, and the card is tested on it")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -337,13 +341,28 @@ func adjudicateDraw(root string, args []string) error {
 			"entry %d: %s", p.Seq, p.Reason)
 	}
 	kept, _ := peoplesVerdicts(events)
+	cardDigest, after := "", time.Time{}
+	if *claimName != "" {
+		card, _, err := loadClaim(root, *claimName)
+		if err != nil {
+			return err
+		}
+		if card.Metric != claim.AdjudicatedFalseClosures || card.Source != *source {
+			return fmt.Errorf("card %s is not a blind-review claim about %s", card.Name, *source)
+		}
+		r, err := claim.Registration(events, card)
+		if err != nil {
+			return err
+		}
+		cardDigest, after = card.Digest(), r.At
+	}
 	pop := adjudicate.Closures(adjudicate.PopulationInput{Source: *source, Since: since, Until: until,
-		Verdicts: vs, Findings: reg.All(until), People: decisionsFrom(kept)})
+		After: after, Verdicts: vs, Findings: reg.All(until), People: decisionsFrom(kept)})
 	seed, err := adjudicate.NewSeed(rand.Reader)
 	if err != nil {
 		return err
 	}
-	s, err := adjudicate.Draw(*source, since, until, "", pop, seed, *per)
+	s, err := adjudicate.Draw(*source, since, until, cardDigest, pop, seed, *per)
 	if err != nil {
 		return err
 	}

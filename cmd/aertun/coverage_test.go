@@ -228,6 +228,9 @@ var coverage = map[string]surfaces{
 			"thing under test choosing its test; the replay itself is served " +
 			"over MCP, by aertun mcp --twin",
 	},
+	// Claim cards: pre-registered tests of vendors' claims.
+	"claim": {GUI: "/proving/claims", MCP: []string{"list_claims"}},
+
 	// Closures judged again blind, on a sample committed first.
 	"adjudicate": {GUI: "/proving/adjudication",
 		NoMCP: "judging a closure blind is a person's judgement by design, and an " +
