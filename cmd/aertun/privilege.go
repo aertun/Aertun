@@ -201,6 +201,12 @@ var commandNeeds = map[string]need{
 	// named and signs with a key the caller named: it opens no store,
 	// contacts nobody and spends nothing, the wind tunnel's weight.
 	"proof": {action: auth.ActView},
+	// A recorded case is the security queue and its evidence copied out of
+	// the store into a file, which is what listing the queue on the command
+	// line takes (`finding`); each part of it is gated again, operation by
+	// operation, exactly as the agent interface gates it for the same
+	// person.
+	"twin": {action: auth.ActTriage},
 	// An action changes something in somebody else's tool.
 	"action":           {action: auth.ActGrant},
 	"action catalogue": {action: auth.ActView},
@@ -639,6 +645,7 @@ var commandAreas = map[string]string{
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
 	"auditlog": auth.AreaLog, "compliance": auth.AreaLog, "bench": auth.AreaSecurity,
 	"windtunnel": auth.AreaSecurity, "proof": auth.AreaSecurity,
+	"twin": auth.AreaSecurity,
 }
 
 // commandArea is the area a command works in, if it works in one.

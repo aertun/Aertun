@@ -35,12 +35,32 @@ import (
 func cmdMCP(root string, args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	list := fs.Bool("list", false, "print the operations and exit")
+	twinAt := fs.String("twin", "", "answer from the snapshot FILE that "+
+		"aertun twin record wrote instead of from the store: the same answer "+
+		"each time, every value labelled with whether an attacker could have "+
+		"written it, and nothing can be changed")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	caller := resolveCaller(root, flagToken)
-	srv := buildMCP(root, caller)
+	var srv *mcp.Server
+	// called audits each tools/call against the store. The twin has no
+	// store: it reads one file and writes nothing, and what it replays was
+	// put in the audit log when the snapshot was recorded.
+	var called func(json.RawMessage, *mcp.Response)
+	if *twinAt != "" {
+		s, err := openTwin(*twinAt)
+		if err != nil {
+			return err
+		}
+		srv = s
+	} else {
+		caller := resolveCaller(root, flagToken)
+		srv = buildMCP(root, caller)
+		called = func(params json.RawMessage, resp *mcp.Response) {
+			auditStdioCall(root, caller, params, resp)
+		}
+	}
 
 	if *list {
 		for _, op := range srv.Operations() {
@@ -58,7 +78,7 @@ func cmdMCP(root string, args []string) error {
 	// stdio. A hosted deployment fronts this with streamable HTTP, and the
 	// framing is the only difference — the routing and the gates are identical,
 	// which is why they live in buildMCP rather than in a transport.
-	return serveStdio(root, srv, caller, os.Stdin, os.Stdout)
+	return serveLines(srv, os.Stdin, os.Stdout, called)
 }
 
 // serveStdio answers the line-framed JSON-RPC protocol on a pair of streams.
@@ -70,6 +90,18 @@ func cmdMCP(root string, args []string) error {
 // tell it had been — and the detection rules that read these records as
 // events under the agent source watch stdio agents too.
 func serveStdio(root string, srv *mcp.Server, caller *Caller, r io.Reader, w io.Writer) error {
+	return serveLines(srv, r, w, func(params json.RawMessage, resp *mcp.Response) {
+		auditStdioCall(root, caller, params, resp)
+	})
+}
+
+// serveLines is the line framing alone: one JSON-RPC request per line in,
+// one reply per line out, and called told of every tools/call when it is
+// not nil. serveStdio hands it the audit; the context twin hands it
+// nothing, because the twin answers from a file and has no store to record
+// into.
+func serveLines(srv *mcp.Server, r io.Reader, w io.Writer,
+	called func(json.RawMessage, *mcp.Response)) error {
 	in := bufio.NewScanner(r)
 	in.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 	out := json.NewEncoder(w)
@@ -86,8 +118,8 @@ func serveStdio(root string, srv *mcp.Server, caller *Caller, r io.Reader, w io.
 			continue
 		}
 		resp := srv.Handle(req)
-		if req.Method == "tools/call" {
-			auditStdioCall(root, caller, req.Params, resp)
+		if req.Method == "tools/call" && called != nil {
+			called(req.Params, resp)
 		}
 		// A notification has no id and expects no reply.
 		if len(req.ID) == 0 {
@@ -343,6 +375,21 @@ func mcpRequestURL(root string, r *http.Request, base string) string {
 	return scheme + "://" + r.Host + r.URL.Path
 }
 
+// opFind is written once, for the agent interface and the context twin
+// (mcptwin.go) alike.
+var opFind = mcp.Operation{
+	Name: "find", NeedsRole: "viewer",
+	Summary: "find a screen by words",
+	Detail: "Words, not a query: there is no syntax, and a colon or a " +
+		"quote is a character in a word.",
+	Args: map[string]string{
+		"query": "the words to look for",
+		"limit": "optional, default 20",
+	},
+	Area:     "/",
+	Keywords: []string{"find", "search", "where", "lookup", "locate", "screen"},
+}
+
 func buildMCP(root string, caller *Caller) *mcp.Server {
 	srv := mcp.NewServer("aertun", version)
 
@@ -376,18 +423,7 @@ func buildMCP(root string, caller *Caller) *mcp.Server {
 	// Screens, by words. The settings are left out on this surface rather
 	// than gated: a key's summary describes a control, and reconnaissance
 	// over the controls is what an injected instruction would ask for first.
-	srv.Register(mcp.Operation{
-		Name: "find", NeedsRole: "viewer",
-		Summary: "find a screen by words",
-		Detail: "Words, not a query: there is no syntax, and a colon or a " +
-			"quote is a character in a word.",
-		Args: map[string]string{
-			"query": "the words to look for",
-			"limit": "optional, default 20",
-		},
-		Area:     "/",
-		Keywords: []string{"find", "search", "where", "lookup", "locate", "screen"},
-	}, func(a map[string]any) (any, error) {
+	srv.Register(opFind, func(a map[string]any) (any, error) {
 		query, _ := a["query"].(string)
 		if strings.TrimSpace(query) == "" {
 			return nil, fmt.Errorf("find needs a query")
