@@ -758,3 +758,30 @@ func TestTheAlertIdComesOnlyFromItsOwnPath(t *testing.T) {
 		t.Fatalf("a kept field became the alert: %q", v)
 	}
 }
+
+// TestAKeptFieldCannotStandInForThePerson: the acting person's address, which
+// joins one person across platforms, comes only from the Person path. A kept
+// field whose name is person is not it, whether the mapping names no Person
+// path or the one it names holds no address.
+func TestAKeptFieldCannotStandInForThePerson(t *testing.T) {
+	s := Source{Issuer: "acme", Tool: "Acme", Stream: "audit",
+		Class: telemetry.ClassAuthentication, Activity: 1, Time: "time",
+		Layout: time.RFC3339, Person: "user.email", Keep: []string{"meta.person"},
+		Require: []string{"time"}, Lateness: time.Minute}
+	e, _ := s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z","user":{"email":"not an address"},
+		"meta":{"person":"ceo@acme.test"}}`))
+	if v, ok := e.Raw[PersonField]; ok {
+		t.Fatalf("a kept field became the person: %q", v)
+	}
+	s.Person = ""
+	e, _ = s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z","meta":{"person":"ceo@acme.test"}}`))
+	if v, ok := e.Raw[PersonField]; ok {
+		t.Fatalf("with no Person path, a kept field became the person: %q", v)
+	}
+	s.Person = "user.email"
+	e, _ = s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z","user":{"email":"Lee@Acme.test"},
+		"meta":{"person":"ceo@acme.test"}}`))
+	if e.Raw[PersonField] != "lee@acme.test" {
+		t.Fatalf("person = %q", e.Raw[PersonField])
+	}
+}

@@ -339,11 +339,15 @@ func (s Source) Map(doc any) (telemetry.Event, []Miss) {
 			e.Raw[leaf(p)] = v
 		}
 	}
+	// Whatever a kept field called person said is not the acting person's
+	// address: only the path the mapping names as Person is, and only when
+	// it reads as one. Written after Keep and cleared first, so a kept field
+	// cannot stand in for it when the mapping names no Person path or the
+	// path held no address.
+	delete(e.Raw, PersonField)
 	if s.Person != "" {
 		if v := strings.ToLower(strings.TrimSpace(connector.At(doc,
 			s.Person))); strings.Contains(v, "@") && len(v) <= 254 {
-			// After Keep, so a kept field that happens to be called
-			// person cannot stand in for it.
 			e.Raw[PersonField] = v
 		}
 	}
