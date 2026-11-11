@@ -117,6 +117,23 @@ is the submitter's — and the console marks it where the agent interface labels
 it. A kept proof is verified again whenever it is read, so one edited
 afterwards shows as no longer verifying.
 
+**"Not affected" — says who?** Vendors, scanners and AI triage tools close
+vulnerability alerts with VEX statements nobody checks. `aertun vuln
+prove-vex FILE --source NAME --where ASSET --key F` holds every `not_affected`
+statement of an OpenVEX document about one asset against Aertun's bill of
+materials, advisories and reachability analysis for it, and signs the
+result. A component the bill lists at an affected version contradicts
+"component not present" and "vulnerable code not present" — except in a Linux
+distribution's packages, which backport fixes without changing the version;
+this asset's own source naming the vulnerable symbol contradicts "not in the
+execute path". A version outside every affected range supports the
+statement. Everything else is uncheckable, with the reason in a closed word:
+a symbol not named here proves nothing about dependencies that were not read,
+and a component missing from the bill may only be spelt differently, so
+neither supports anything. Refuted names each contradiction; proven needs
+every statement supported. Nothing the document's author wrote reaches the
+proof, and no statement closes a finding.
+
 **Claim cards: a vendor's claim, tested as it was made.** "98% agreement" can
 be made true afterwards by choosing the metric, the alerts, the period and the
 day to stop looking. `aertun claim register NAME --source S --metric M

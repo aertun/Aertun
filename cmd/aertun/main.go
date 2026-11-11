@@ -132,6 +132,7 @@ Vulnerabilities and code
   aertun vuln asset MATCH --exposure E --impact I --because "…"
   aertun vuln assess CVE PKG STATUS | accept CVE PKG --owner W --until DATE --because "…"
   aertun vuln vex --author A --id URL      the decisions as an OpenVEX draft
+  aertun vuln prove-vex FILE --source NAME --where ASSET --key F   another party's "not affected" statements held to the evidence, signed
   aertun feed status                       what the scanner is working from, and how old it is
   aertun sca scan --bom sbom.json --osv db.json   which dependencies you can actually fix
   aertun sarif read results.sarif          import any scanner's findings, and what it left out

@@ -187,7 +187,7 @@ func (s *Server) handleProofs(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "proofs.html", map[string]any{"Nav": "proofs", "Title": "Proofs",
 		"Principal": p, "Message": r.URL.Query().Get("m"), "Error": r.URL.Query().Get("e"),
 		"Rows": rows, "Kept": kept, "Tiles": tiles, "Kind": kind,
-		"Kinds": []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication", "claim"}})
+		"Kinds": []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication", "claim", "not-affected"}})
 }
 
 func (s *Server) handleProof(w http.ResponseWriter, r *http.Request) {

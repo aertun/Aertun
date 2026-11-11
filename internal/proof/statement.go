@@ -134,6 +134,9 @@ type Predicate struct {
 	Adjudication *AdjudicationEvidence `json:"adjudication,omitempty"`
 	// ClaimTest is set on a claim proof: a pre-registered claim, tested.
 	ClaimTest *ClaimEvidence `json:"claim_test,omitempty"`
+	// NotAffected is set on a not-affected proof: a VEX document's
+	// statements held against the evidence.
+	NotAffected *NotAffectedEvidence `json:"not_affected,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -255,7 +258,8 @@ func (s *Statement) validateEvidence() error {
 	p := s.Predicate
 	kinds := 0
 	for _, set := range []bool{p.Detection != nil, p.Calibration != nil, p.Verdicts != nil,
-		p.Reconciliation != nil, p.Adjudication != nil, p.ClaimTest != nil} {
+		p.Reconciliation != nil, p.Adjudication != nil, p.ClaimTest != nil,
+		p.NotAffected != nil} {
 		if set {
 			kinds++
 		}
@@ -291,6 +295,11 @@ func (s *Statement) validateEvidence() error {
 			return fmt.Errorf("a claim proof carries the claim's test and no other evidence")
 		}
 		return p.ClaimTest.validate(s)
+	case PredicateNotAffected:
+		if p.NotAffected == nil || kinds != 1 {
+			return fmt.Errorf("a not-affected proof carries its statements' counts and no other evidence")
+		}
+		return p.NotAffected.validate(s)
 	default:
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}
