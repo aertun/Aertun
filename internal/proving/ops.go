@@ -34,10 +34,11 @@ var proofKinds = map[string]string{
 	proof.PredicateReconciliation: "reconciliation",
 	proof.PredicateAdjudication:   "adjudication",
 	proof.PredicateClaim:          "claim",
+	proof.PredicateNotAffected:    "not-affected",
 }
 
 // kindWords are the kinds a listing can be narrowed to.
-var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication", "claim"}
+var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication", "claim", "not-affected"}
 
 func proofKind(st *proof.Statement) string {
 	if k, ok := proofKinds[st.PredicateType]; ok {
@@ -51,7 +52,7 @@ func proofKind(st *proof.Statement) string {
 func wordsFrom(st *proof.Statement) func(string) *ops.Answer {
 	if st.Predicate.Calibration != nil || st.Predicate.Verdicts != nil ||
 		st.Predicate.Reconciliation != nil || st.Predicate.Adjudication != nil ||
-		st.Predicate.ClaimTest != nil {
+		st.Predicate.ClaimTest != nil || st.Predicate.NotAffected != nil {
 		return ops.OursText
 	}
 	return ops.Outside
@@ -202,6 +203,17 @@ func readProof(src Source) func(ops.Call) (*ops.Answer, error) {
 				With("closures", ops.Ours(k.Closures)).With("false_closures", ops.Ours(k.FalseClosures)).
 				With("false_closure_upper", ops.Ours(k.Upper)).With("expires", ops.Ours(k.Expires)).
 				With("template_sha256", ops.Ours(k.Template)))
+		case p.NotAffected != nil:
+			v := p.NotAffected
+			reasons := ops.List()
+			for _, r := range v.Reasons {
+				reasons.Add(ops.Object().With("reason", ops.Ours(r.Reason)).With("count", ops.Ours(r.Count)))
+			}
+			row.With("evidence", ops.Object().With("source", ops.Ours(v.Source)).
+				With("asset", ops.Ours(v.Asset)).With("statements", ops.Ours(v.Statements)).
+				With("not_affected", ops.Ours(v.NotAffected)).With("supported", ops.Ours(v.Supported)).
+				With("contradicted", ops.Ours(v.Contradicted)).With("uncheckable", ops.Ours(v.Uncheckable)).
+				With("reasons", reasons))
 		case p.ClaimTest != nil:
 			v := p.ClaimTest
 			row.With("evidence", ops.Object().With("card", ops.Ours(v.Name)).
