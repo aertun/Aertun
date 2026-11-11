@@ -132,6 +132,8 @@ type Predicate struct {
 	// Adjudication is set on an adjudication proof: closures judged again,
 	// blind, on a sample committed first.
 	Adjudication *AdjudicationEvidence `json:"adjudication,omitempty"`
+	// ClaimTest is set on a claim proof: a pre-registered claim, tested.
+	ClaimTest *ClaimEvidence `json:"claim_test,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -253,7 +255,7 @@ func (s *Statement) validateEvidence() error {
 	p := s.Predicate
 	kinds := 0
 	for _, set := range []bool{p.Detection != nil, p.Calibration != nil, p.Verdicts != nil,
-		p.Reconciliation != nil, p.Adjudication != nil} {
+		p.Reconciliation != nil, p.Adjudication != nil, p.ClaimTest != nil} {
 		if set {
 			kinds++
 		}
@@ -284,6 +286,11 @@ func (s *Statement) validateEvidence() error {
 			return fmt.Errorf("an adjudication proof carries adjudication evidence and no other")
 		}
 		return p.Adjudication.validate(s)
+	case PredicateClaim:
+		if p.ClaimTest == nil || kinds != 1 {
+			return fmt.Errorf("a claim proof carries the claim's test and no other evidence")
+		}
+		return p.ClaimTest.validate(s)
 	default:
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}

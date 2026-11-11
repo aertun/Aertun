@@ -56,6 +56,9 @@ type twinCase struct {
 	// case was recorded, each checked then: what list_proofs and
 	// read_proof answer from, through the same operations (internal/proving).
 	Proofs twinPart[proving.Recorded] `json:"proofs"`
+	// Claims are the claim cards as list_claims read them when the case was
+	// recorded.
+	Claims twinPart[[]claimFact] `json:"claims"`
 }
 
 // twinPart is what one operation's gather came back with when the case was
@@ -118,6 +121,8 @@ func recordTwin(root string, caller *Caller, now time.Time) (twinCase, map[strin
 	c.Estate = keepPart(opEstateSummary.Name, omitted, e, err)
 	p, err := gatherProofs(root, caller)
 	c.Proofs = keepPart("list_proofs", omitted, p, err)
+	cl, err := gatherClaimsFor(root, caller)
+	c.Claims = keepPart("list_claims", omitted, cl, err)
 	return c, omitted, nil
 }
 
@@ -235,6 +240,16 @@ func buildTwin(c *twinCase, digest string) *mcp.Server {
 		}))
 	}
 
+	if op, ok := provingRegistry("").Get("list_claims"); ok {
+		if mop, ok := mcpOperation(op); ok {
+			srv.Register(mop, reply(func(map[string]any) (*answer, error) {
+				return c.Claims.replay("list_claims", digest, func(f []claimFact) (*answer, error) {
+					return answerClaims(f, c.Recorded), nil
+				})
+			}))
+		}
+	}
+
 	srv.Register(opFind, func(map[string]any) (any, error) {
 		return nil, &mcp.Refusal{Reason: "find searches this program's " +
 			"screens, not the store, so a replay of a recorded case has no " +
@@ -273,4 +288,13 @@ func (twinCaller) Agent() bool                       { return true }
 func (twinCaller) Name() string                      { return "twin" }
 func (twinCaller) Record(string, map[string]string) error {
 	return errors.New("a replay records nothing")
+}
+
+// gatherClaimsFor reads the claim cards for whoever records a case, through
+// the gate list_claims applies.
+func gatherClaimsFor(root string, caller *Caller) ([]claimFact, error) {
+	if err := authoriseUnder(root, caller, auth.ActView, auth.AreaSecurity); err != nil {
+		return nil, &mcp.Refusal{Reason: err.Error()}
+	}
+	return gatherClaims(root)
 }

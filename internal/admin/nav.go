@@ -74,6 +74,8 @@ var destinations = []destination{
 	// proofs listed beside it. Viewing shows how far each review has got;
 	// judging an item asks for triage, at the operation.
 	{"adjudication", "Adjudication", "/proving/adjudication", "Proving ground", "proofs", auth.ActView},
+	// Vendors' claims, pre-registered as tests.
+	{"claims", "Claim cards", "/proving/claims", "Proving ground", "proofs", auth.ActView},
 
 	// What is waiting and what is wrong, for everybody who signs in; where
 	// a sign-in lands.

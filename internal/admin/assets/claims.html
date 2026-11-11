@@ -1,0 +1,18 @@
+{{template "head" .}}
+<h1>Claim cards</h1>
+<p class="lead">A vendor's claim — "98% agreement", "fewer than 1% of closures wrong" — written
+  down as a test before the data it is tested on existed: the metric, the alerts it counts, the
+  threshold, the confidence and the window, committed to the audit log. Only data that arrives
+  after the card counts, and nothing is decided until its window has closed.</p>
+{{if .Rows}}<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Card</th><th scope="col">The claim</th><th scope="col">Window</th></tr></thead>
+  <tbody>{{range .Rows}}<tr>
+    <th scope="row"><code>{{.Name}}</code>{{if .Entry}}<br><span class="hint">registered at audit entry {{.Entry}}</span>{{end}}</th>
+    <td>{{if .Source}}{{.Source}}: {{.Metric}} is {{.Side}} {{.Threshold}}<br><span class="hint">tested at confidence {{.Confidence}}</span>{{end}}
+      {{if .Broken}}<br><span class="wf-word critical">{{.Broken}}</span>{{end}}</td>
+    <td>{{if .Ends}}{{if .Closed}}<span class="wf-word good">closed</span> {{.Ends}}<br><span class="hint">ready: <code class="cmd">aertun claim test {{.Name}} --key KEY</code></span>{{else}}open until {{.Ends}}{{end}}{{end}}</td>
+  </tr>{{end}}</tbody></table></div>
+<p class="hint">A tested card's proof is listed with the others on the Proofs screen.</p>
+{{else}}<p>No claim cards. <code>aertun claim register NAME --source S --metric agreement
+  --direction at-least --threshold 0.98</code> registers one.</p>{{end}}
+{{template "foot" .}}

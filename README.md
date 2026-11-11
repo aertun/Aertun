@@ -117,6 +117,21 @@ is the submitter's — and the console marks it where the agent interface labels
 it. A kept proof is verified again whenever it is read, so one edited
 afterwards shows as no longer verifying.
 
+**Claim cards: a vendor's claim, tested as it was made.** "98% agreement" can
+be made true afterwards by choosing the metric, the alerts, the period and the
+day to stop looking. `aertun claim register NAME --source S --metric M
+--direction at-least|at-most --threshold R [--window-days 30]` fixes all of
+them first — the metric is agreement, false closures, escalations closed,
+abstentions, consistency, or false closures judged blind — and commits the
+card's digest to the signed audit log; only data arriving after that entry
+counts, a card is never changed, and one edited on disk matches no
+registration and is refused. `aertun claim test NAME --key F` signs whatever
+it finds and decides nothing while the window is open; once it has closed,
+the exact interval at the card's own confidence proves or refutes it. A
+blind-review card is tested on the one sample drawn for it after it was
+registered (`adjudicate draw --claim NAME`). The cards are on the console's
+**Claim cards** screen and the agent interface's `list_claims`.
+
 **Closures judged again, blind.** Comparing a vendor's AI with the analysts
 measures agreement, and people re-examine only what looked wrong. `aertun
 adjudicate draw --source NAME --since DATE --per N` draws a random sample from

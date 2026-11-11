@@ -198,6 +198,10 @@ var commandNeeds = map[string]need{
 	// Blind review: drawing a sample and proving one sign a measurement in
 	// the organisation's name and ask for tune themselves; judging is a
 	// reviewer's work, and asking how big a sample must be is arithmetic.
+	// Claim cards: registering and testing one ask for tune themselves, as
+	// the other signed measurements do; reading the cards is reading.
+	"claim":           {action: auth.ActTriage},
+	"claim list":      {action: auth.ActView},
 	"adjudicate":      {action: auth.ActTriage},
 	"adjudicate list": {action: auth.ActView},
 	"adjudicate size": {action: ""},

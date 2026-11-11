@@ -33,10 +33,11 @@ var proofKinds = map[string]string{
 	proof.PredicateVerdicts:       "verdicts",
 	proof.PredicateReconciliation: "reconciliation",
 	proof.PredicateAdjudication:   "adjudication",
+	proof.PredicateClaim:          "claim",
 }
 
 // kindWords are the kinds a listing can be narrowed to.
-var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication"}
+var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication", "claim"}
 
 func proofKind(st *proof.Statement) string {
 	if k, ok := proofKinds[st.PredicateType]; ok {
@@ -49,7 +50,8 @@ func proofKind(st *proof.Statement) string {
 // words are rebuilt from numbers, outside for the rest.
 func wordsFrom(st *proof.Statement) func(string) *ops.Answer {
 	if st.Predicate.Calibration != nil || st.Predicate.Verdicts != nil ||
-		st.Predicate.Reconciliation != nil || st.Predicate.Adjudication != nil {
+		st.Predicate.Reconciliation != nil || st.Predicate.Adjudication != nil ||
+		st.Predicate.ClaimTest != nil {
 		return ops.OursText
 	}
 	return ops.Outside
@@ -200,6 +202,14 @@ func readProof(src Source) func(ops.Call) (*ops.Answer, error) {
 				With("closures", ops.Ours(k.Closures)).With("false_closures", ops.Ours(k.FalseClosures)).
 				With("false_closure_upper", ops.Ours(k.Upper)).With("expires", ops.Ours(k.Expires)).
 				With("template_sha256", ops.Ours(k.Template)))
+		case p.ClaimTest != nil:
+			v := p.ClaimTest
+			row.With("evidence", ops.Object().With("card", ops.Ours(v.Name)).
+				With("source", ops.Ours(v.Source)).With("metric", ops.Ours(v.Metric)).
+				With("direction", ops.Ours(v.Direction)).With("threshold", ops.Ours(v.Threshold)).
+				With("confidence", ops.Ours(v.Confidence)).With("window_closed", ops.Ours(v.Closed)).
+				With("count", ops.Object().With("k", ops.Ours(v.K)).With("n", ops.Ours(v.N)).
+					With("lower", ops.Ours(v.Low)).With("upper", ops.Ours(v.High))))
 		case p.Adjudication != nil:
 			v := p.Adjudication
 			bound := func(b proof.Bound) *ops.Answer {
