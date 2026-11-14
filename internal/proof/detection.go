@@ -114,7 +114,8 @@ func ProveDetection(in DetectionInput) (*Statement, error) {
 		p.Verdict = Refuted
 		return st, nil
 	}
-	p.Checks = append(p.Checks, Check{Name: "valid", Passed: true})
+	p.Checks = append(p.Checks, Check{Name: "valid", Passed: true,
+		Detail: "it names its sources, its condition is well formed, and its fixtures are usable events"})
 	p.Checks = append(p.Checks, fixtureCheck(r))
 
 	if in.CorpusName == "" {
