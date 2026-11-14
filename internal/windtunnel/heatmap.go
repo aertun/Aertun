@@ -189,7 +189,7 @@ func renderHeatmap(b *strings.Builder, heat []HeatRow) {
 	}
 	// The accessibility statement travels with the grid, so a reader does
 	// not have to trust that the colours they cannot see carried nothing.
-	fmt.Fprintf(b, "  %s\n", wrap("every cell carries its outcome word and "+
+	b.WriteString(hang("  ", "every cell carries its outcome word and "+
 		"every row its counts; nothing in this grid is colour alone — a "+
 		"terminal cannot promise a palette, so the words are the encoding"))
 }

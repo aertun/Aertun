@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aertun/aertun/internal/jcs"
 )
@@ -441,7 +442,7 @@ func (c *Scorecard) Summarize() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "wind tunnel, mode %s, scoring %s, engine %s\n", c.Mode,
 		c.ScoreMode, c.Engine)
-	fmt.Fprintf(&b, "  scored by %s\n", wrap(standingLine(c.ScoreMode)))
+	b.WriteString(hang("  scored by ", standingLine(c.ScoreMode)))
 	fmt.Fprintf(&b, "  base stream %s (%d event(s), digest %s)\n", c.Base,
 		c.BaseEvents, shortDigest(c.BaseDigest))
 	fmt.Fprintf(&b, "  reference pack %s (digest %s), corpus %s, seed %d\n",
@@ -456,8 +457,8 @@ func (c *Scorecard) Summarize() string {
 			"counted, never dropped\n", ts.Dir, shortDigest(ts.Digest),
 			ts.Read, ts.Imported, len(ts.Refused))
 		for _, s := range ts.Refused {
-			fmt.Fprintf(&b, "      refused %q: %s — %s\n", s.Rule, s.What,
-				wrap(refusalWhy(s)))
+			b.WriteString(hang(fmt.Sprintf("      refused %q: ", s.Rule),
+				s.What+" — "+refusalWhy(s)))
 		}
 	}
 	for _, s := range c.Scenarios {
@@ -501,7 +502,7 @@ func (c *Scorecard) Summarize() string {
 		}
 		fmt.Fprintf(&b, "        twin %-38s %s\n", r.Twin.ID, twin)
 		if r.Note != "" {
-			fmt.Fprintf(&b, "        %s\n", wrap(r.Note))
+			b.WriteString(hang("        ", r.Note))
 		}
 	}
 	a := c.Aggregate
@@ -540,13 +541,13 @@ func (c *Scorecard) Summarize() string {
 	if len(c.Blinds) > 0 {
 		fmt.Fprintf(&b, "  declared blinds:\n")
 		for _, bl := range c.Blinds {
-			fmt.Fprintf(&b, "    %s: %s\n", bl.Scenario, wrap(bl.Blind))
+			b.WriteString(hang("    "+bl.Scenario+": ", bl.Blind))
 		}
 	}
 	if c.ModeBlind != "" {
-		fmt.Fprintf(&b, "  scoring blind: %s\n", wrap(c.ModeBlind))
+		b.WriteString(hang("  scoring blind: ", c.ModeBlind))
 	}
-	fmt.Fprintf(&b, "  %s\n", wrap(c.Caveat))
+	b.WriteString(hang("  ", c.Caveat))
 	sig := "unsigned: no key was supplied, and this document makes no claim " +
 		"a signature would back"
 	if c.Signature != nil {
@@ -582,7 +583,7 @@ func renderMutation(b *strings.Builder, m *MutationReport, mark string) {
 				strings.Join(r.Surface, ", "), shortDigest(r.Digest))
 		}
 		if r.Note != "" {
-			fmt.Fprintf(b, "        %s\n", wrap(r.Note))
+			b.WriteString(hang("        ", r.Note))
 		}
 	}
 	if x := m.MissUnderMutation; x != nil {
@@ -598,25 +599,30 @@ func renderMutation(b *strings.Builder, m *MutationReport, mark string) {
 			"of %d evaded (%s, 95%% Wilson %.1f%% to %.1f%%)%s\n", x.K, x.N,
 			pct(x.Rate), x.Low*100, x.High*100, mark)
 	}
-	fmt.Fprintf(b, "  mutation caveat: %s\n", wrap(m.Caveat))
+	b.WriteString(hang("  mutation caveat: ", m.Caveat))
 }
 
-// wrap breaks a long sentence for the terminal, the way the help wraps.
-func wrap(s string) string {
-	words := strings.Fields(s)
-	if len(words) == 0 {
-		return ""
-	}
-	var lines []string
-	line := words[0]
-	for _, w := range words[1:] {
-		if len(line)+1+len(w) > 72 {
-			lines = append(lines, line)
-			line = w
-			continue
+// hang is one paragraph for the terminal, ending in a newline: lead as it
+// is given, then the sentence, broken at 78 columns, with every line after
+// the first hung two spaces inside the lead's own indent — so a note that
+// wraps stays under what it is a note about, at whatever depth that is.
+func hang(lead, s string) string {
+	const width = 78
+	pad := strings.Repeat(" ", len(lead)-len(strings.TrimLeft(lead, " "))+2)
+	var b strings.Builder
+	line, bare := lead, true
+	for _, w := range strings.Fields(s) {
+		switch {
+		case bare:
+			line += w
+			bare = false
+		case utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width:
+			b.WriteString(line + "\n")
+			line = pad + w
+		default:
+			line += " " + w
 		}
-		line += " " + w
 	}
-	lines = append(lines, line)
-	return strings.Join(lines, "\n    ")
+	b.WriteString(strings.TrimRight(line, " ") + "\n")
+	return b.String()
 }

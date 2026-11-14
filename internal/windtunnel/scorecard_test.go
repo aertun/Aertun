@@ -274,3 +274,35 @@ func TestScorecardSummarizeNamesWhatRanBeforeHowItWent(t *testing.T) {
 		}
 	}
 }
+
+// A note that wraps stays under what it is a note about: every line after
+// the first is hung inside the lead's own indent, whatever depth that is,
+// no line is wider than the terminal it was broken for unless one word is,
+// and no word is lost or added on the way.
+func TestAWrappedNoteHangsUnderItsLead(t *testing.T) {
+	note := strings.Repeat("counting events over a window is a different question from matching one ", 4)
+	for _, lead := range []string{"  ", "        ", "      refused \"a rule\": ", "  scoring blind: "} {
+		got := hang(lead, note)
+		lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+		if len(lines) < 3 || !strings.HasPrefix(lines[0], lead) || !strings.HasSuffix(got, "\n") {
+			t.Fatalf("lead %q: %q", lead, got)
+		}
+		indent := len(lead) - len(strings.TrimLeft(lead, " "))
+		for _, l := range lines[1:] {
+			if in := len(l) - len(strings.TrimLeft(l, " ")); in != indent+2 {
+				t.Errorf("lead %q: a continuation line is indented %d, want %d: %q", lead, in, indent+2, l)
+			}
+		}
+		for _, l := range lines {
+			if len(l) > 78 {
+				t.Errorf("lead %q: a line is %d wide: %q", lead, len(l), l)
+			}
+		}
+		if a, b := strings.Fields(got), strings.Fields(lead+note); strings.Join(a, " ") != strings.Join(b, " ") {
+			t.Errorf("lead %q: the words changed", lead)
+		}
+	}
+	if got := hang("  ", ""); got != "\n" {
+		t.Errorf("nothing to say: %q", got)
+	}
+}

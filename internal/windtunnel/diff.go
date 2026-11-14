@@ -292,7 +292,7 @@ func (d *DiffReport) Summarize() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "wind tunnel diff, engine %s, scoring %s\n", d.From.Engine,
 		d.From.ScoreMode)
-	fmt.Fprintf(&b, "  scored by %s\n", wrap(standingLine(d.From.ScoreMode)))
+	b.WriteString(hang("  scored by ", standingLine(d.From.ScoreMode)))
 	for _, s := range []struct {
 		word string
 		side DiffSide
@@ -332,7 +332,7 @@ func (d *DiffReport) Summarize() string {
 				s.TwinTo, s.TwinKind)
 		}
 		if s.Note != "" {
-			fmt.Fprintf(&b, "        %s\n", wrap(s.Note))
+			b.WriteString(hang("        ", s.Note))
 		}
 	}
 	fmt.Fprintf(&b, "  aggregate: missed %d of %d (%s, 95%% Wilson %.1f%% "+
@@ -350,9 +350,9 @@ func (d *DiffReport) Summarize() string {
 			why = "the base stream's bytes are the same, so the instrument " +
 				"changed what it raises on them"
 		}
-		fmt.Fprintf(&b, "  ambient: %d → %d alert(s) on the base stream "+
-			"alone; %s\n", d.Ambient.FromFires, d.Ambient.ToFires,
-			wrap(why))
+		b.WriteString(hang(fmt.Sprintf("  ambient: %d → %d alert(s) on the "+
+			"base stream alone; ", d.Ambient.FromFires, d.Ambient.ToFires),
+			why))
 	}
 	// The instrument line a their-Sigma PR gate reads first: when the
 	// rules themselves changed between the two runs, every transition
