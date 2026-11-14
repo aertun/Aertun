@@ -2175,7 +2175,7 @@ ol.thread .who { display: block; font: var(--label-md); font-weight: 700; margin
   --mark-second: light-dark(#0096B4, #1DE9B6);
 }
 .mark .mark-first { fill: var(--mark-first); }
-.mark .mark-second { fill: var(--mark-second); }
+.mark .mark-second { fill: url(#aertun-stream) var(--mark-second); }
 
 /* =========================================================================
    The October 2026 refresh.
@@ -2412,10 +2412,15 @@ th[scope="row"] { font-weight: 500; }
 .run-steps button, .run-steps summary, .run-steps thead th { white-space: nowrap; }
 .run-steps td:nth-child(2) code { overflow-wrap: break-word; }
 
-/* The logotype: the mark, then the name, centred on each other. Sized in em
-   so it follows whatever size the name is set at. */
-.lockup { display: inline-flex; align-items: center; gap: .28em; white-space: nowrap; }
-.lockup .lockup-mark { width: 1.1em; height: 1.1em; flex: none; }
+/* The wordmark: the mark is the A of the name, and "ertun" follows it on the
+   same baseline, as in the brand's own drawing (docs/brand), whose numbers
+   these are: the letters are this typeface at weight 500, the mark's box is
+   their em, its feet stand .039em above the box's foot, and the e begins
+   .01em inside the box's right edge. */
+.lockup { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap;
+  font-weight: 500; letter-spacing: 0; color: var(--mark-first); }
+.lockup .lockup-mark { width: 1em; height: 1em; flex: none; margin-bottom: -.039em; }
+.lockup .lockup-rest { margin-left: -.01em; }
 
 /* Members: an invitation code shown once, large enough to copy by eye, and
    a removal that has to be opened before it can be confirmed. */

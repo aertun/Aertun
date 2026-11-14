@@ -7,7 +7,7 @@
 {{if .Owner}}<p class="hint"><strong>{{.Owner}}</strong> owns this store and always administers all of it. Nobody can revoke, deny or expire that; ownership moves only when the Owner asks for a transfer and confirms it a day later (<code>aertun auth owner transfer</code>).</p>{{end}}
 
 {{if .Pending}}<h2 id="pending">Waiting for a second administrator</h2>
-<p class="hint">Making somebody an administrator, an administrator's token, a weaker setting, fewer approvers and moving the audit log each take two administrators: one asks, another approves. An only administrator approves their own request after a delay — an hour, a day to move the audit log — so a stolen session cannot finish a takeover before it is seen. Declining always wins.</p>
+<p class="hint">Making somebody an administrator, an administrator's token, a weaker setting, fewer approvers, trusting a key to sign proofs and moving the audit log each take two administrators: one asks, another approves. An only administrator approves their own request after a delay — an hour, a day to move the audit log — so a stolen session cannot finish a takeover before it is seen. Declining always wins.</p>
 <ul class="auto-list">{{range .Pending}}<li class="auto-card waiting">
   <div class="auto-head"><span class="wf-band as-written warning"><span class="wf-icon">{{icon "error"}}</span>Waiting</span><strong>{{.What}}</strong></div>
   <p>Asked by {{.By}} at {{.At.UTC.Format "15:04 2 Jan"}}{{if .Why}}: “{{.Why}}”{{end}}. {{.Words}}.</p>

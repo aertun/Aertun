@@ -388,9 +388,15 @@ func adjudicateDraw(root string, args []string) error {
 		"population_ai": len(pop.AI), "population_human": len(pop.Human), "unlinked": pop.Unlinked}) {
 		return nil
 	}
-	w.Human("sample %s: %d item(s), %d from %d closure(s) by %s's AI and %d from %d by people; "+
+	// A closure both the AI and a person made is drawn for both and judged
+	// once, so the items can be fewer than the two draws added together.
+	both := ""
+	if n := ai + human - len(s.Items); n > 0 {
+		both = fmt.Sprintf(" (%d closed by both, judged once)", n)
+	}
+	w.Human("sample %s: %d item(s)%s, %d from %d closure(s) by %s's AI and %d from %d by people; "+
 		"committed to the audit log. Review it on the console's Adjudication screen or with "+
-		"aertun adjudicate next %s\n", s.ID, len(s.Items), ai, len(pop.AI), *source, human,
+		"aertun adjudicate next %s\n", s.ID, len(s.Items), both, ai, len(pop.AI), *source, human,
 		len(pop.Human), s.ID)
 	return nil
 }

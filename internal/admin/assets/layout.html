@@ -173,7 +173,13 @@
   neither gets both.
 */}}
 {{/* The logotype: the mark, then the name. Read out as the name. */}}
-{{define "lockup"}}<span class="lockup" role="img" aria-label="Aertun"><svg class="mark lockup-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span aria-hidden="true">Aertun</span></span>{{end}}
+{{/*
+  The wordmark: the mark is the A of the name, and the rest of the name is
+  set against it — one logo, the same as the README's and the manual's. The
+  streamline carries its own gradient; one wordmark is drawn per page, so
+  the gradient's id is used once.
+*/}}
+{{define "lockup"}}<span class="lockup" role="img" aria-label="Aertun"><svg class="mark lockup-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><defs><linearGradient id="aertun-stream" x1="1.125" y1="17.25" x2="22.5" y2="9" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#00B4D8"/><stop offset="1" stop-color="#1DE9B6"/></linearGradient></defs><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span class="lockup-rest" aria-hidden="true">ertun</span></span>{{end}}
 {{define "req"}}<span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>{{end}}
 
 {{/*
