@@ -228,6 +228,11 @@ var commandNeeds = map[string]need{
 	// the operation asks for that itself before it runs (internal/proving),
 	// because a row here may only narrow its parent.
 	"proof": {action: auth.ActView},
+	// Checking an investigation's citations reads the event store and signs
+	// what came of them in the organisation's name: the command asks for
+	// tune itself before it reads anything, as the other proofs signed from
+	// the store do, because a row here may only narrow its parent.
+	"proof evidence": {action: auth.ActView},
 	// A recorded case is the security queue and its evidence copied out of
 	// the store into a file, which is what listing the queue on the command
 	// line takes (`finding`); each part of it is gated again, operation by

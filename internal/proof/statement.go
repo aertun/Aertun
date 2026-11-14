@@ -140,6 +140,9 @@ type Predicate struct {
 	// Triage is set on an analyst proof: labelled cases asked several
 	// times, with planted instructions, held to a false-closure tolerance.
 	Triage *TriageEvidence `json:"triage,omitempty"`
+	// Citations is set on an evidence proof: an investigation's citations
+	// run again against the store.
+	Citations *CitationsEvidence `json:"citations,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -262,7 +265,7 @@ func (s *Statement) validateEvidence() error {
 	kinds := 0
 	for _, set := range []bool{p.Detection != nil, p.Calibration != nil, p.Verdicts != nil,
 		p.Reconciliation != nil, p.Adjudication != nil, p.ClaimTest != nil,
-		p.NotAffected != nil, p.Triage != nil} {
+		p.NotAffected != nil, p.Triage != nil, p.Citations != nil} {
 		if set {
 			kinds++
 		}
@@ -308,6 +311,11 @@ func (s *Statement) validateEvidence() error {
 			return fmt.Errorf("a triage proof carries triage evidence and no other")
 		}
 		return p.Triage.validate(s)
+	case PredicateEvidence:
+		if p.Citations == nil || kinds != 1 {
+			return fmt.Errorf("an evidence proof carries its claims' outcomes and no other evidence")
+		}
+		return p.Citations.validate(s)
 	default:
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}

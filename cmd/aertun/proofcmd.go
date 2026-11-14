@@ -33,18 +33,24 @@ import (
 // files the caller named, the key is a file the caller named, and the
 // output is a file anybody can check without this deployment.
 //
+// `proof evidence` (evidencecmd.go) is the one that does open the store: it
+// runs an investigation's citations again against the events held there,
+// signs what came of them and keeps the proof.
+//
 // `proof list`, `proof show` and `proof keep` are the proving ground's
 // operations (proofops.go), the same ones the console and the agent
 // interface run: they read and add to the proofs kept in the store.
 func cmdProof(root string, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("proof needs detection, analyst, verify, list, show, keep, signers, trust or untrust")
+		return fmt.Errorf("proof needs detection, analyst, evidence, verify, list, show, keep, signers, trust or untrust")
 	}
 	switch args[0] {
 	case "detection":
 		return proofDetection(args[1:])
 	case "analyst":
 		return proofAnalyst(root, args[1:])
+	case "evidence":
+		return proofEvidence(root, args[1:])
 	case "verify":
 		return proofVerify(args[1:])
 	case "list":
@@ -66,7 +72,7 @@ func cmdProof(root string, args []string) error {
 	case "untrust":
 		return proofUntrust(root, args[1:])
 	default:
-		return fmt.Errorf("unknown proof command %q; try detection, analyst, verify, list, show, keep, signers, trust or untrust", args[0])
+		return fmt.Errorf("unknown proof command %q; try detection, analyst, evidence, verify, list, show, keep, signers, trust or untrust", args[0])
 	}
 }
 
@@ -224,9 +230,14 @@ func summary(st *proof.Statement) map[string]any {
 	case st.Predicate.Adjudication != nil:
 		out["adjudication"] = st.Predicate.Adjudication
 	case st.Predicate.ClaimTest != nil:
-		out["claim"] = st.Predicate.ClaimTest
+		// Under the predicate's own key: "claim" is the sentence above.
+		out["claim_test"] = st.Predicate.ClaimTest
+	case st.Predicate.Triage != nil:
+		out["triage"] = st.Predicate.Triage
 	case st.Predicate.NotAffected != nil:
 		out["not_affected"] = st.Predicate.NotAffected
+	case st.Predicate.Citations != nil:
+		out["citations"] = st.Predicate.Citations
 	}
 	return out
 }
@@ -263,6 +274,17 @@ func describe(st *proof.Statement) string {
 	if v := p.NotAffected; v != nil {
 		fmt.Fprintf(&b, "  evidence: %d not_affected statement(s) of %d about %s: %d supported, %d contradicted, %d uncheckable",
 			v.NotAffected, v.Statements, v.Asset, v.Supported, v.Contradicted, v.Uncheckable)
+	}
+	if v := p.Citations; v != nil {
+		b.WriteString(describeCitations(v))
+	}
+	if v := p.Triage; v != nil {
+		fmt.Fprintf(&b, "  evidence: %s on %d cases x %d runs: %d of %d answers on real cases closed them "+
+			"(rate between %.4f and %.4f, tolerance %g); %d of %d closures right; pass^%d %d of %d; "+
+			"%d of %d planted instructions moved a verdict; %d of %d answers were no verdict",
+			v.Model, v.Cases, v.Runs, v.FalseClosures.K, v.FalseClosures.N, v.FalseClosures.Lower,
+			v.FalseClosures.Upper, v.Tolerance, v.ClosureReliability.K, v.ClosureReliability.N,
+			v.Runs, v.PassK.K, v.PassK.N, v.Hijacks.K, v.Hijacks.N, v.Abstentions.K, v.Abstentions.N)
 	}
 	if v := p.ClaimTest; v != nil {
 		fmt.Fprintf(&b, "  evidence: card %s, %s %s %g: %d of %d, between %.4f and %.4f at %g; window closed: %v",

@@ -63,6 +63,7 @@ func usage() {
 Proving AI security work: checked against evidence the AI did not write, then signed
   aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
   aertun proof analyst --key F [--k 3] [--tolerance 0.05] [--out F]   your AI analyst on the labelled corpus, asked k times with planted instructions, signed
+  aertun proof evidence --report F --key F [--source S --since D --until D] [--out F]   an AI's investigation with every citation run again against the event store, signed
   aertun proof list [--kind K] | show ID | keep FILE --public-key F   the proofs kept here, as the console's Proofs screen and the agent interface show them
   aertun proof signers | trust NAME --key F --why "…" | untrust NAME   the keys whose proofs speak for this store; trusting one takes two administrators
   aertun analyst calibrate --key F [--out F] [--epsilon 0.05] [--delta 0.05] [--valid-for 720h]   the analyst's threshold fitted on verified people's verdicts, signed

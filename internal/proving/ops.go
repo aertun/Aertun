@@ -24,7 +24,10 @@ import (
 // program's. A detection proof names the rule it checked — a file name and a
 // title chosen by whoever submitted the rule, which may be the model under
 // test — so its subject, claim, check details and materials are labelled as
-// written outside, as anything that could be either is.
+// written outside, as anything that could be either is. An evidence proof's
+// words are rebuilt from closed sets too, but they carry the ids and
+// observables the investigation's author cited, strictly parsed and still
+// the author's choice, so they are labelled as written outside as well.
 
 // proofKinds names each predicate by the word every face shows.
 var proofKinds = map[string]string{
@@ -36,10 +39,12 @@ var proofKinds = map[string]string{
 	proof.PredicateClaim:          "claim",
 	proof.PredicateNotAffected:    "not-affected",
 	proof.PredicateTriage:         "triage",
+	proof.PredicateEvidence:       "evidence",
 }
 
 // kindWords are the kinds a listing can be narrowed to.
-var kindWords = []string{"detection", "triage", "calibration", "verdicts", "reconciliation", "adjudication", "claim", "not-affected"}
+var kindWords = []string{"detection", "triage", "calibration", "verdicts", "reconciliation", "adjudication", "claim",
+	"not-affected", "evidence"}
 
 func proofKind(st *proof.Statement) string {
 	if k, ok := proofKinds[st.PredicateType]; ok {
@@ -252,6 +257,24 @@ func readProof(src Source) func(ops.Call) (*ops.Answer, error) {
 				With("not_affected", ops.Ours(v.NotAffected)).With("supported", ops.Ours(v.Supported)).
 				With("contradicted", ops.Ours(v.Contradicted)).With("uncheckable", ops.Ours(v.Uncheckable)).
 				With("reasons", reasons))
+		case p.Citations != nil:
+			v := p.Citations
+			outcomes := ops.ListOf(v.Outcomes, func(o proof.CitationOutcome) *ops.Answer {
+				row := ops.Object().With("id", ops.Outside(o.ID)).With("kind", ops.Ours(o.Kind)).
+					With("outcome", ops.Ours(o.Outcome)).With("reason", ops.Ours(o.Reason)).
+					With("observed", ops.Ours(o.Observed)).With("extracted", ops.Ours(o.Extracted))
+				if o.Kind == proof.CiteCount {
+					return row.With("compare", ops.Ours(o.Compare)).With("stated", ops.Ours(o.Stated))
+				}
+				return row.With("cited_type", ops.Ours(o.CitedType)).With("cited", ops.Outside(o.Cited))
+			})
+			row.With("evidence", ops.Object().With("source", ops.Outside(v.Source)).
+				With("form", ops.Ours(v.Form)).With("since", ops.Ours(v.Since)).With("until", ops.Ours(v.Until)).
+				With("held_from", ops.Ours(v.HeldFrom)).With("held_until", ops.Ours(v.HeldUntil)).
+				With("covered", ops.Ours(v.Covered)).With("events_read", ops.Ours(v.EventsRead)).
+				With("claims", ops.Ours(v.Claims)).With("extracted", ops.Ours(v.Extracted)).
+				With("supported", ops.Ours(v.Supported)).With("contradicted", ops.Ours(v.Contradicted)).
+				With("uncheckable", ops.Ours(v.Uncheckable)).With("outcomes", outcomes))
 		case p.ClaimTest != nil:
 			v := p.ClaimTest
 			row.With("evidence", ops.Object().With("card", ops.Ours(v.Name)).
