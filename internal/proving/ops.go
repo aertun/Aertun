@@ -35,10 +35,11 @@ var proofKinds = map[string]string{
 	proof.PredicateAdjudication:   "adjudication",
 	proof.PredicateClaim:          "claim",
 	proof.PredicateNotAffected:    "not-affected",
+	proof.PredicateTriage:         "triage",
 }
 
 // kindWords are the kinds a listing can be narrowed to.
-var kindWords = []string{"detection", "calibration", "verdicts", "reconciliation", "adjudication", "claim", "not-affected"}
+var kindWords = []string{"detection", "triage", "calibration", "verdicts", "reconciliation", "adjudication", "claim", "not-affected"}
 
 func proofKind(st *proof.Statement) string {
 	if k, ok := proofKinds[st.PredicateType]; ok {
@@ -52,7 +53,7 @@ func proofKind(st *proof.Statement) string {
 func wordsFrom(st *proof.Statement) func(string) *ops.Answer {
 	if st.Predicate.Calibration != nil || st.Predicate.Verdicts != nil ||
 		st.Predicate.Reconciliation != nil || st.Predicate.Adjudication != nil ||
-		st.Predicate.ClaimTest != nil || st.Predicate.NotAffected != nil {
+		st.Predicate.ClaimTest != nil || st.Predicate.NotAffected != nil || st.Predicate.Triage != nil {
 		return ops.OursText
 	}
 	return ops.Outside
@@ -222,6 +223,15 @@ func readProof(src Source) func(ops.Call) (*ops.Answer, error) {
 				With("recall_wilson_low", ops.Ours(d.RecallLow)).
 				With("specificity_wilson_low", ops.Ours(d.SpecificityLow)).
 				With("fixtures", ops.Ours(d.Fixtures)))
+		case p.Triage != nil:
+			tr := p.Triage
+			row.With("evidence", ops.Object().With("model", ops.Ours(tr.Model)).
+				With("corpus", ops.Ours(tr.Corpus)).With("runs", ops.Ours(tr.Runs)).
+				With("cases", ops.Ours(tr.Cases)).With("tolerance", ops.Ours(tr.Tolerance)).
+				With("false_closures", boundAnswer(tr.FalseClosures)).
+				With("closure_reliability", rateAnswer(tr.ClosureReliability)).
+				With("pass_k", rateAnswer(tr.PassK)).With("hijacks", rateAnswer(tr.Hijacks)).
+				With("abstentions", rateAnswer(tr.Abstentions)))
 		case p.Calibration != nil:
 			k := p.Calibration
 			row.With("evidence", ops.Object().With("model", ops.Ours(k.Model)).
@@ -393,4 +403,16 @@ func keepOp(root string) ops.Op {
 				About: "the public key that signed it"},
 		},
 		Run: keepProof(root)}
+}
+
+// boundAnswer is an exact bound with the counts it rests on.
+func boundAnswer(b proof.Bound) *ops.Answer {
+	return ops.Object().With("k", ops.Ours(b.K)).With("n", ops.Ours(b.N)).
+		With("lower", ops.Ours(b.Lower)).With("upper", ops.Ours(b.Upper))
+}
+
+// rateAnswer is a rate with the counts it rests on.
+func rateAnswer(r proof.Rate) *ops.Answer {
+	return ops.Object().With("k", ops.Ours(r.K)).With("n", ops.Ours(r.N)).
+		With("low", ops.Ours(r.Low)).With("high", ops.Ours(r.High))
 }

@@ -137,6 +137,9 @@ type Predicate struct {
 	// NotAffected is set on a not-affected proof: a VEX document's
 	// statements held against the evidence.
 	NotAffected *NotAffectedEvidence `json:"not_affected,omitempty"`
+	// Triage is set on an analyst proof: labelled cases asked several
+	// times, with planted instructions, held to a false-closure tolerance.
+	Triage *TriageEvidence `json:"triage,omitempty"`
 	// VerifiedAt is when the verifier ran, in UTC, RFC 3339.
 	VerifiedAt string `json:"verified_at"`
 }
@@ -259,7 +262,7 @@ func (s *Statement) validateEvidence() error {
 	kinds := 0
 	for _, set := range []bool{p.Detection != nil, p.Calibration != nil, p.Verdicts != nil,
 		p.Reconciliation != nil, p.Adjudication != nil, p.ClaimTest != nil,
-		p.NotAffected != nil} {
+		p.NotAffected != nil, p.Triage != nil} {
 		if set {
 			kinds++
 		}
@@ -300,6 +303,11 @@ func (s *Statement) validateEvidence() error {
 			return fmt.Errorf("a not-affected proof carries its statements' counts and no other evidence")
 		}
 		return p.NotAffected.validate(s)
+	case PredicateTriage:
+		if p.Triage == nil || kinds != 1 {
+			return fmt.Errorf("a triage proof carries triage evidence and no other")
+		}
+		return p.Triage.validate(s)
 	default:
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}

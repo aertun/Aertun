@@ -38,11 +38,13 @@ import (
 // interface run: they read and add to the proofs kept in the store.
 func cmdProof(root string, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("proof needs detection, verify, list, show, keep, signers, trust or untrust")
+		return fmt.Errorf("proof needs detection, analyst, verify, list, show, keep, signers, trust or untrust")
 	}
 	switch args[0] {
 	case "detection":
 		return proofDetection(args[1:])
+	case "analyst":
+		return proofAnalyst(root, args[1:])
 	case "verify":
 		return proofVerify(args[1:])
 	case "list":
@@ -64,7 +66,7 @@ func cmdProof(root string, args []string) error {
 	case "untrust":
 		return proofUntrust(root, args[1:])
 	default:
-		return fmt.Errorf("unknown proof command %q; try detection, verify, list, show, keep, signers, trust or untrust", args[0])
+		return fmt.Errorf("unknown proof command %q; try detection, analyst, verify, list, show, keep, signers, trust or untrust", args[0])
 	}
 }
 
