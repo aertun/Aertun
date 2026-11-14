@@ -231,6 +231,12 @@ type Server struct {
 	// carries an agent's kind and name rather than a person's. Nil records
 	// nothing, which is only right in a test.
 	AuditAgent func(action, resource, agent string, detail map[string]string)
+	// KillAgent is the agent kill switch (cmd/aertun's killAgent): the
+	// registry entry disabled, every token bound to the agent revoked, the
+	// act recorded and announced, as by. It returns how many tokens were
+	// revoked. Nil means this server cannot pull it, and the agent page
+	// offers no switch.
+	KillAgent func(name, why, by string) (int, error)
 	// Origin is where people and programs reach this server: admin.base_url,
 	// as it was when the server started. It is the one address enrolment
 	// links, feeds, the token exchange's audience and the DPoP proofs it
@@ -1020,6 +1026,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/security/hunt", s.handleHunt)
 	mux.HandleFunc("/security/agents", s.handleAgents)
 	mux.HandleFunc("/security/agents/", s.handleAgent)
+	mux.HandleFunc("/security/agents/kill", s.handleAgentKill)
 	mux.HandleFunc("/security/egress", s.handleEgress)
 	mux.HandleFunc("/security/feeds", s.handleFeeds)
 	mux.HandleFunc("/security/feeds/act", s.handleFeedsAct)

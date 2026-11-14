@@ -22,7 +22,6 @@ import (
 	"github.com/aertun/aertun/internal/detect"
 	"github.com/aertun/aertun/internal/dual"
 	"github.com/aertun/aertun/internal/estate"
-	"github.com/aertun/aertun/internal/fetch"
 	"github.com/aertun/aertun/internal/incident"
 	"github.com/aertun/aertun/internal/indicator"
 	"github.com/aertun/aertun/internal/listen"
@@ -78,6 +77,18 @@ func cmdServe(root string, args []string) error {
 	// its own.
 	srv.Consents = consentStore(root)
 	srv.RunKey = func() ([]byte, error) { return loadRunKey(root) }
+	// The agent kill switch on the console, pulled as the person signed in:
+	// the same switch, record and announcement as aertun agent disable.
+	srv.KillAgent = func(name, why, by string) (int, error) {
+		c := &Caller{Name: by, Kind: audit.KindHuman, Verified: true}
+		return killAgent(root, c, name, why, func(action, agent string, extra map[string]string) error {
+			d := map[string]string{"agent": agent}
+			for k, v := range extra {
+				d[k] = v
+			}
+			return recordE(root, c.auditRecord(action, "/agents/"+agent, audit.Success, d))
+		})
+	}
 	// The one origin the console's links, feeds and token exchange name
 	// when the operator has set one (publicOrigin); read once, here, as the
 	// OAuth metadata is, so the two cannot drift apart while serving.
@@ -472,7 +483,12 @@ func cmdServe(root string, args []string) error {
 					"that cannot work", cfg.Issuer, oidcSecretEnv)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		provider, derr := oidc.Discover(ctx, cfg.Issuer, fetch.For("sso"))
+		fetcher, ferr := oidcFetcher(cfg)
+		if ferr != nil {
+			cancel()
+			return fmt.Errorf("the identity provider's configuration: %w", ferr)
+		}
+		provider, derr := oidc.Discover(ctx, cfg.Issuer, fetcher)
 		cancel()
 		if derr != nil {
 			return fmt.Errorf("cannot reach the identity provider: %w", derr)

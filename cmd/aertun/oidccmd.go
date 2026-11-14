@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,6 +53,44 @@ type oidcConfig struct {
 	// factor, asked for on every sign-in; an amr naming mfa says so without
 	// them.
 	MFAACR []string `json:"mfa_acr,omitempty"`
+	// Reach are the private-network ranges the provider is in, for an
+	// identity provider run inside the organisation (Keycloak, AD FS):
+	// discovery, keys and the token call may reach addresses in them, and
+	// nothing else private. Empty is the public internet only, the right
+	// answer for a hosted provider. Each is held to fetch.Declarable, so no
+	// range reaches link-local, where cloud metadata lives.
+	Reach []string `json:"reach,omitempty"`
+}
+
+// oidcFetcher is the client every call to the provider goes through: the
+// public internet, and the ranges the configuration declares.
+func oidcFetcher(c *oidcConfig) (*fetch.Client, error) {
+	f := fetch.For("sso")
+	if c == nil || len(c.Reach) == 0 {
+		return f, nil
+	}
+	ranges, err := parseReach(c.Reach)
+	if err != nil {
+		return nil, err
+	}
+	f.Reach = fetch.Within(ranges)
+	return f, nil
+}
+
+// parseReach reads declared ranges, refusing any fetch.Declarable refuses.
+func parseReach(in []string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, r := range in {
+		p, err := netip.ParsePrefix(strings.TrimSpace(r))
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a network range like 10.20.0.0/16", r)
+		}
+		if why := fetch.Declarable(p); why != "" {
+			return nil, fmt.Errorf("%s cannot be reached: %s", p, why)
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }
 
 // providerLabel is what the sign-in button calls a preset.
@@ -118,6 +157,8 @@ func oidcConfigure(root string, args []string) error {
 	tenant := fs.String("tenant", "", "the Microsoft Entra tenant ID")
 	mfaACR := fs.String("mfa-acr", "", "acr values that mean a second factor was used, comma-separated "+
 		"(urn:okta:loa:2fa:any, or a Keycloak level)")
+	reach := fs.String("reach", "", "private ranges an in-house provider is in, comma-separated (10.20.0.0/16); "+
+		"empty is the public internet only")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -184,6 +225,14 @@ func oidcConfigure(root string, args []string) error {
 			cfg.MFAACR = append(cfg.MFAACR, v)
 		}
 	}
+	for _, v := range strings.Split(*reach, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			cfg.Reach = append(cfg.Reach, v)
+		}
+	}
+	if _, err := parseReach(cfg.Reach); err != nil {
+		return err
+	}
 	if err := saveJSON(oidcPath(root), cfg); err != nil {
 		return err
 	}
@@ -195,7 +244,7 @@ func oidcConfigure(root string, args []string) error {
 		Detail: map[string]string{
 			"issuer": cfg.Issuer, "client": cfg.ClientID, "claim": cfg.Claim,
 			"provider": cfg.Provider, "domains": strings.Join(cfg.Domains, ","),
-			"mfa_acr": strings.Join(cfg.MFAACR, " "),
+			"mfa_acr": strings.Join(cfg.MFAACR, " "), "reach": strings.Join(cfg.Reach, ","),
 		},
 	})
 
@@ -278,10 +327,17 @@ func secretSet() bool { return os.Getenv(oidcSecretEnv) != "" }
 func oidcCheck(root string, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	issuer := fs.String("issuer", "", "check this issuer instead of the configured one")
+	reach := fs.String("reach", "", "with --issuer, private ranges it may be in, comma-separated")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	checkCfg := &oidcConfig{}
+	for _, v := range strings.Split(*reach, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			checkCfg.Reach = append(checkCfg.Reach, v)
+		}
+	}
 	target := *issuer
 	if target == "" {
 		cfg, err := loadOIDC(root)
@@ -292,13 +348,18 @@ func oidcCheck(root string, args []string) error {
 			return fmt.Errorf("no provider is configured; pass --issuer to check one")
 		}
 		target = cfg.Issuer
+		checkCfg = cfg
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	w.Human("%sdiscovery%s\n", bold, reset)
-	p, err := oidc.Discover(ctx, target, fetch.For("sso"))
+	fetcher, err := oidcFetcher(checkCfg)
+	if err != nil {
+		return err
+	}
+	p, err := oidc.Discover(ctx, target, fetcher)
 	if err != nil {
 		return errBlocked{err}
 	}

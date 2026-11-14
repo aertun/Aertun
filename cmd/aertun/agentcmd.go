@@ -633,32 +633,45 @@ func agentDisable(root string, caller *Caller, args []string,
 			"read this register — the review, or whoever decides to enable it " +
 			"again — has to know what happened, and \"ask around\" is not a record")
 	}
-	if err := agentStore(root).Disable(pos[0], strings.TrimSpace(*why),
-		caller.Name, time.Now().UTC()); err != nil {
-		return err
+	revoked, err := killAgent(root, caller, pos[0], strings.TrimSpace(*why), note)
+	if revoked >= 0 {
+		w.Human("%s%s%s is disabled%s\n", bold, pos[0], reset, whySuffix(revoked))
 	}
-	revoked, err := revokeAgentTokens(root, pos[0])
+	return err
+}
+
+// killAgent is the kill switch itself, the same from the command line and
+// the console: the registry entry goes disabled, every token bound to the
+// agent is revoked, the act is recorded, and every configured receiver is
+// told. It returns how many tokens were revoked, or -1 when the registry
+// refused before anything happened.
+func killAgent(root string, caller *Caller, name, why string,
+	note func(string, string, map[string]string) error) (int, error) {
+
+	if err := agentStore(root).Disable(name, why, caller.Name, time.Now().UTC()); err != nil {
+		return -1, err
+	}
+	revoked, err := revokeAgentTokens(root, name)
 	if err != nil {
 		// The registry is disabled, which is the half that stops fresh
 		// credentials; a failure to reach the token store is reported loudly
 		// rather than rolled back, because the tokens that could not be
 		// revoked are still refused by the registry gate on their next use.
-		return fmt.Errorf("%s is disabled in the registry, but its tokens "+
+		return 0, fmt.Errorf("%s is disabled in the registry, but its tokens "+
 			"could not be revoked: %v\n  they are refused by the registry "+
 			"gate until this is fixed; revoke them by hand with `aertun "+
-			"token list` and `aertun token revoke ID`", pos[0], err)
+			"token list` and `aertun token revoke ID`", name, err)
 	}
-	w.Human("%s%s%s is disabled%s\n", bold, pos[0], reset,
-		whySuffix(revoked))
-	noteErr := note("agent.disable", pos[0], map[string]string{
-		"why": *why, "revoked": fmt.Sprintf("%d", revoked)})
-	// The outward half of the switch: tell every configured receiver. Best-effort by contract — the
-	// local kill has already happened, and a receiver that is unreachable
-	// must never be allowed to fail or delay the switch that stops the
-	// agent. Each attempt is audited on its own, success or failure, so the
-	// record says who heard about the kill and who did not.
-	transmitAgentRevocation(root, caller, pos[0], strings.TrimSpace(*why))
-	return noteErr
+	noteErr := note("agent.disable", name, map[string]string{
+		"why": why, "revoked": fmt.Sprintf("%d", revoked)})
+	// The outward half of the switch: tell every configured receiver.
+	// Best-effort by contract — the local kill has already happened, and a
+	// receiver that is unreachable must never be allowed to fail or delay
+	// the switch that stops the agent. Each attempt is audited on its own,
+	// success or failure, so the record says who heard about the kill and
+	// who did not.
+	transmitAgentRevocation(root, caller, name, why)
+	return revoked, noteErr
 }
 
 // transmitAgentRevocation pushes a session-revoked event about one agent to

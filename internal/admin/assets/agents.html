@@ -81,6 +81,15 @@
       <span class="hint">— recorded by {{.ChangedBy}}, who pulled the kill switch</span></dd>{{end}}
     <dt>Last changed</dt><dd>{{if .Changed}}{{.Changed}} by {{.ChangedBy}}{{else}}by {{.ChangedBy}}{{end}}</dd>
   </dl>
+  {{if and $.CanKill .Active}}
+  <form method="post" action="/security/agents/kill" class="killswitch">
+    <input type="hidden" name="name" value="{{.Name}}">
+    <div class="field"><label for="kill-why-{{.Name}}">Why it is being stopped</label>
+      <input id="kill-why-{{.Name}}" name="why" required maxlength="500" aria-describedby="kill-help-{{.Name}}">
+      <p id="kill-help-{{.Name}}" class="hint">Disables it in the registry and revokes every token it holds, at once; receivers that trust it are told. Kept on the record for whoever decides to enable it again.</p></div>
+    <p><button type="submit" class="btn-danger">Disable {{.Name}} and revoke its tokens</button></p>
+  </form>
+  {{end}}
 </div>
 {{end}}
 <p class="hint">Matched because this agent's own events carried the name —

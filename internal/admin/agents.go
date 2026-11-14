@@ -1035,6 +1035,8 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Agent"], data["From"], data["Short"] = row, scan.From, scan.Short
+	data["CanKill"] = s.KillAgent != nil && s.Policy != nil &&
+		s.Policy.Evaluate(p.Name, auth.ActRespond, auth.AreaSecurity).Allowed
 	data["Read"] = scan.Read
 	// The same join the board makes, so a row's page and its row cannot
 	// disagree about what the registry holds.
@@ -1124,4 +1126,46 @@ func (s *Server) agentNotFound(w http.ResponseWriter, r *http.Request,
 		"Heading":   "No agent has been observed under that identity",
 		"Body":      body,
 	})
+}
+
+// handleAgentKill is the kill switch on the console: the same switch the
+// command line pulls (Server.KillAgent), asked of a responder, because the
+// person who has to stop an agent at three in the morning holds the pager,
+// not necessarily an administrator. It takes a reason, kept on the record
+// for whoever decides to enable the agent again.
+func (s *Server) handleAgentKill(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	p, ok := s.requireAuth(w, r)
+	if !ok || !s.can(w, r, p, auth.ActRespond, auth.AreaSecurity) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	back := func(msg string) {
+		http.Redirect(w, r, "/security/agents?m="+urlQueryEscape(msg), http.StatusSeeOther)
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	why := strings.TrimSpace(r.FormValue("why"))
+	switch {
+	case s.KillAgent == nil:
+		back("This server cannot pull an agent's kill switch; use aertun agent disable.")
+		return
+	case !agentreg.ValidName(name):
+		back("That does not name a registered agent.")
+		return
+	case why == "" || len(why) > 500 || strings.ContainsAny(why, "\x00\r\n"):
+		back("Disabling an agent takes a reason of one line, kept on the record for whoever decides to enable it again.")
+		return
+	}
+	revoked, err := s.KillAgent(name, why, p.Name)
+	if err != nil {
+		back(err.Error())
+		return
+	}
+	back(fmt.Sprintf("%s is disabled, and %d of its token(s) revoked.", name, revoked))
 }

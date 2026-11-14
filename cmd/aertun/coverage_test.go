@@ -240,10 +240,7 @@ var coverage = map[string]surfaces{
 
 	// Another vendor's AI verdicts, scored against people's decisions.
 	"verdict": {
-		Why: "a verdicts proof is a signed file taken where it is used and " +
-			"checked there with proof verify; there is no screen for proofs " +
-			"yet, and the decisions it is scored against are on each " +
-			"finding's page",
+		GUI: "/proving/proofs",
 		NoMCP: "an agent importing verdicts would choose what a product is " +
 			"measured on, and proving signs with a key file named on the " +
 			"command line, which an MCP server must never hold on a " +
@@ -487,10 +484,7 @@ var coverage = map[string]surfaces{
 	// arrives with the review campaign the AC-2 story needs, where the
 	// register is the thing being reviewed.
 	"agent": {
-		Why: "the registry is read through the people and audit surfaces it " +
-			"feeds — owners beside the credentials on /people, changes in " +
-			"the log with their reasons; a page of its own arrives with the " +
-			"access review that reviews it",
+		GUI: "/security/agents",
 		NoMCP: "this surface decides which agents exist and what each may " +
 			"call; a model that could register or disable one would be " +
 			"deciding who may act, and the one call this surface must not " +
