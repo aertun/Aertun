@@ -1,4 +1,4 @@
-{{define "fact"}}{{.Text}}{{if .Outside}} <span class="tag tag-warn" title="Written outside Aertun: a rule's name or title chosen by whoever submitted it, which may be the model under test">untrusted</span>{{end}}{{end}}
+{{define "fact"}}{{.Text}}{{if .Outside}} <span class="tag tag-warn" title="Written outside Aertun: a name, an id or a title chosen by whoever submitted the work, which may be the model under test">written outside</span>{{end}}{{end}}
 {{template "head" .}}
 <h1>Proofs</h1>
 {{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}

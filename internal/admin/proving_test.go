@@ -105,14 +105,14 @@ func TestTheProofsScreenShowsWhatTheOperationLabelled(t *testing.T) {
 	if i < 0 {
 		t.Fatalf("the detection proof is not listed:\n%s", body)
 	}
-	if !strings.Contains(body[i:i+400], "untrusted") {
+	if !strings.Contains(body[i:i+400], "written outside") {
 		t.Errorf("text from outside is shown without its mark: %s", body[i:i+400])
 	}
 	j := strings.Index(body, "closed as false-positive or benign")
 	if j < 0 {
 		t.Fatalf("the verdicts proof is not listed")
 	}
-	if end := strings.Index(body[j:], "</td>"); strings.Contains(body[j:j+end], "untrusted") {
+	if end := strings.Index(body[j:], "</td>"); strings.Contains(body[j:j+end], "written outside") {
 		t.Errorf("this program's own words are marked as written outside")
 	}
 	for _, want := range []string{"proven", "Proving ground", "/proving/proofs?kind=verdicts"} {
@@ -126,7 +126,7 @@ func TestTheProofsScreenShowsWhatTheOperationLabelled(t *testing.T) {
 		if !strings.Contains(page, "Checks") || !strings.Contains(page, "a key this store does not trust") {
 			t.Errorf("proof %s's page:\n%s", m[1], page)
 		}
-		if strings.Contains(page, provingMarker) && !strings.Contains(page, "untrusted") {
+		if strings.Contains(page, provingMarker) && !strings.Contains(page, "written outside") {
 			t.Errorf("proof %s shows outside text unmarked", m[1])
 		}
 		if strings.Contains(page, "<b>bold</b>") {

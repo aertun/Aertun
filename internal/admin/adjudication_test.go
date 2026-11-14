@@ -67,7 +67,7 @@ func TestTheReviewPageShowsTheItemBlind(t *testing.T) {
 	if strings.Contains(page, "<script>close") {
 		t.Fatal("text from outside reached the page unescaped")
 	}
-	if !strings.Contains(page, "untrusted") || !strings.Contains(page, `value="false-positive"`) ||
+	if !strings.Contains(page, "written outside") || !strings.Contains(page, `value="false-positive"`) ||
 		!strings.Contains(page, "Item 4 of 40") {
 		t.Errorf("the review page:\n%s", page)
 	}
