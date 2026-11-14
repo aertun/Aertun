@@ -145,7 +145,10 @@ func agentReconcile(root string, caller *Caller, args []string) error {
 	}
 	in := reconcile.Input{Since: since, Until: until, Window: *window, Hosts: own, Shared: shared}
 	for _, e := range events {
-		if e.Action != "mcp.call" || e.Detail["client"] != "agent:"+name {
+		// By the registered name the gate checked, not by the client: that
+		// is the principal a credential was issued to, which need not be the
+		// agent's name.
+		if e.Action != "mcp.call" || e.Detail["agent"] != name {
 			continue
 		}
 		at, perr := time.Parse(time.RFC3339Nano, e.At)

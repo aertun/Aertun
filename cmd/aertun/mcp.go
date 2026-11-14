@@ -151,7 +151,7 @@ func auditStdioCall(root string, caller *Caller, params json.RawMessage, resp *m
 		_ = json.Unmarshal(p.Arguments, &a)
 		operation = a.Operation
 	}
-	auditMCPCall(root, caller.Name, p.Name, operation, resp.Error)
+	auditMCPCall(root, caller, p.Name, operation, resp.Error)
 }
 
 // auditMCPCall writes the audit record for one tools/call, whichever
@@ -160,13 +160,22 @@ func auditStdioCall(root string, caller *Caller, params json.RawMessage, resp *m
 // outcome, not a failure, so a rule reading these events tells an agent
 // that was told no from one that broke.
 //
+// A registered agent's call carries its registered name, and its run when
+// its credential was minted for one. The client is the principal the
+// credential was issued to, which whoever issued it chose and which need
+// not be the agent's name; the agent is the name the register holds and
+// every gate checked before the call was answered. What is said about one
+// agent afterwards — what it called, and whether its own account of that
+// holds (aertun agent reconcile) — is read from the agent, never from the
+// client.
+//
 // Reported rather than returned: the call has happened and the caller has
 // its answer, and a record that could not be written is a thing to say
 // loudly, not a reply to take back. The writes an agent makes are refused
 // outright unless the log can take their record (auditReady, in buildMCP's
 // gate); reads go on and are recorded here, which is what tells this
 // process the log is back.
-func auditMCPCall(root, client, tool, operation string, rerr *mcp.Error) {
+func auditMCPCall(root string, c *Caller, tool, operation string, rerr *mcp.Error) {
 	outcome := audit.Success
 	if rerr != nil {
 		outcome = audit.Failure
@@ -174,12 +183,17 @@ func auditMCPCall(root, client, tool, operation string, rerr *mcp.Error) {
 			outcome = audit.Denied
 		}
 	}
+	detail := map[string]string{"tool": tool, "operation": operation, "client": c.Name}
+	if c.Agent != "" {
+		detail["agent"] = c.Agent
+		if c.Run != "" {
+			detail["run"] = c.Run
+		}
+	}
 	record(root, audit.Record{
 		Action: "mcp.call", Resource: "/mcp", Outcome: outcome,
 		Principal: "mcp-client", Kind: audit.KindAI, Model: "mcp-client",
-		Verified: false,
-		Detail: map[string]string{
-			"tool": tool, "operation": operation, "client": client},
+		Verified: false, Detail: detail,
 	})
 }
 
@@ -242,7 +256,7 @@ func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) 
 		},
 		SameOrigin: func(o string) bool { return origins[o] },
 		Called: func(r *http.Request, c *mcp.Caller, tool, operation string, rerr *mcp.Error) {
-			auditMCPCall(root, c.Principal, tool, operation, rerr)
+			auditMCPCall(root, c.Data.(*Caller), tool, operation, rerr)
 		},
 	})
 	// The document a 401 points at: what this resource is, and the one
