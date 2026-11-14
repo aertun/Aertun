@@ -492,7 +492,7 @@ func Screens() []find.Destination {
 		"risk":         {"score", "priority", "exposure"},
 		"events":       {"log", "telemetry", "raw"},
 		"hunt":         {"search", "query", "baseline", "stack"},
-		"agents":       {"ai", "bot", "mcp", "llm", "genai", "tool call", "sidecar"},
+		"agents":       {"ai", "bot", "mcp", "llm", "genai", "tool call", "sidecar", "registry", "kill switch", "disable agent"},
 		"egress":       {"outbound", "network", "connect", "destination", "traffic", "socket"},
 		"indicators":   {"ioc", "intelligence", "threat", "hash", "domain"},
 		"detections":   {"rule", "sigma", "tuning", "suppression", "ring"},

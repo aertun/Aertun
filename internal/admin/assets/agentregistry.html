@@ -1,0 +1,33 @@
+{{template "head" .}}
+<h1>Agent registry</h1>
+<p class="lead">Every AI agent this organisation has registered: who answers for it, what it may
+  call, and whether it may run. This is what was declared — the Agents board is what was observed —
+  so an agent that has gone quiet is still here, and can still be stopped.</p>
+{{if .Message}}<p class="notice" role="status">{{.Message}}</p>{{end}}
+{{if .RegistryErr}}
+<p class="notice">The agent registry could not be read ({{.RegistryErr}}). Unreadable is not the
+  same as empty, so nothing is listed.</p>
+{{else if .Registry}}
+<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Agent</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Allowed tools</th>{{if $.CanKill}}<th scope="col">Stop it</th>{{end}}</tr></thead>
+  <tbody>{{range .Registry}}<tr>
+    <th scope="row"><code>{{.Name}}</code>{{if .Note}}<br><span class="hint">{{.Note}}</span>{{end}}</th>
+    <td><span class="wf-word {{.Tone}}">{{.Word}}</span>{{if .Why}}<br><span class="hint">{{.Why}} — recorded by {{.ChangedBy}}</span>{{end}}</td>
+    <td>{{.Owner}}</td>
+    <td>{{if .Allow}}{{range .Allow}}<span class="chip-small">{{.}}</span> {{end}}{{else}}none{{end}}</td>
+    {{if $.CanKill}}<td>{{if .Active}}
+      <form method="post" action="/security/agents/kill" class="inline">
+        <input type="hidden" name="name" value="{{.Name}}">
+        <input type="hidden" name="back" value="registry">
+        <label for="stop-why-{{.Name}}">Why {{.Name}} is being stopped{{template "req"}}</label>
+        <input id="stop-why-{{.Name}}" name="why" required maxlength="500" size="28">
+        <button type="submit" class="btn-danger">Disable and revoke its tokens</button>
+      </form>{{else}}<span class="hint">a person enables it again with <code class="cmd">aertun agent enable</code></span>{{end}}</td>{{end}}
+  </tr>{{end}}</tbody></table></div>
+{{if $.CanKill}}<p class="hint">Disabling an agent refuses its calls at once, revokes every token it
+  holds, records who did it and why, and tells the receivers that trust it.</p>{{end}}
+{{else}}
+<p>No agent is registered. <code>aertun agent add NAME --owner WHO --allow TOOL</code> registers one.</p>
+{{end}}
+<p><a href="/security/agents">The Agents board: what each agent was observed doing</a></p>
+{{template "foot" .}}

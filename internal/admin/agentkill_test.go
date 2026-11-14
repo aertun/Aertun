@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aertun/aertun/internal/agentreg"
 	"github.com/aertun/aertun/internal/auth"
 )
 
@@ -47,5 +48,39 @@ func TestTheConsoleKillSwitchTakesAResponderAndAReason(t *testing.T) {
 	}
 	if !strings.Contains(loc, "watcher is disabled, and 2 of its token(s) revoked") {
 		t.Errorf("the answer: %s", loc)
+	}
+}
+
+// The registry page lists an agent no event has named — the board, by
+// design, gives it no row — with its kill switch for a responder; an
+// analyst reads the registry and is offered no switch; the registry's free
+// text is escaped.
+func TestTheRegistryPageListsASilentAgentWithItsSwitch(t *testing.T) {
+	withRegistry(t, func(st agentreg.Store) {
+		addAgent(t, st, agentreg.Agent{Name: "night-watcher", Owner: "Ana",
+			Note: `reads the queue <b>overnight</b>`, Allow: []string{"aertun_read"}, CreatedBy: "dana"})
+	})
+	srv, editor := setup(t)
+	srv.KillAgent = func(string, string, string) (int, error) { return 0, nil }
+	page := get(t, srv, "/security/agents/registry", editor).Body.String()
+	for _, want := range []string{"<code>night-watcher</code>", `action="/security/agents/kill"`,
+		"Disable and revoke its tokens", "active"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the registry page does not show %q", want)
+		}
+	}
+	if strings.Contains(page, "<b>overnight</b>") {
+		t.Error("the registry's note reached the page unescaped")
+	}
+	if err := srv.Policy.Grant(auth.Binding{Principal: "ana", Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
+		t.Fatal(err)
+	}
+	analyst, _, err := srv.Tokens.IssueSession("a", "ana", auth.RoleAnalyst, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page = get(t, srv, "/security/agents/registry", analyst).Body.String()
+	if !strings.Contains(page, "<code>night-watcher</code>") || strings.Contains(page, `action="/security/agents/kill"`) {
+		t.Error("an analyst was not shown the registry, or was offered the kill switch")
 	}
 }

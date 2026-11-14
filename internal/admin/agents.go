@@ -1146,8 +1146,10 @@ func (s *Server) handleAgentKill(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	// Back to where the switch was pulled: the registry, which shows the
+	// entry's new status and the answer.
 	back := func(msg string) {
-		http.Redirect(w, r, "/security/agents?m="+urlQueryEscape(msg), http.StatusSeeOther)
+		http.Redirect(w, r, "/security/agents/registry?m="+urlQueryEscape(msg), http.StatusSeeOther)
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	why := strings.TrimSpace(r.FormValue("why"))
@@ -1168,4 +1170,31 @@ func (s *Server) handleAgentKill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back(fmt.Sprintf("%s is disabled, and %d of its token(s) revoked.", name, revoked))
+}
+
+// handleAgentRegistry is the registry as a page of its own: every entry,
+// observed or not. The board shows only what events named, by design, so
+// the registry — and the kill switch, which is the registry's — is here,
+// where an agent that has gone quiet can still be stopped.
+func (s *Server) handleAgentRegistry(w http.ResponseWriter, r *http.Request) {
+	p, ok := s.securityCan(w, r, auth.ActTriage)
+	if !ok {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	data := map[string]any{"Nav": "agents", "Title": "Agent registry", "Principal": p,
+		"Message": r.URL.Query().Get("m"), "RegistryErr": "",
+		"CanKill": s.KillAgent != nil && s.Policy != nil &&
+			s.Policy.Evaluate(p.Name, auth.ActRespond, auth.AreaSecurity).Allowed}
+	entries, err := AgentRegistry.Load()
+	if err != nil {
+		data["RegistryErr"] = err.Error()
+	}
+	var registry []agentMatch
+	for _, a := range entries {
+		registry = append(registry, agentMatches(a))
+	}
+	sort.Slice(registry, func(i, j int) bool { return registry[i].Name < registry[j].Name })
+	data["Registry"] = registry
+	s.render(w, r, "agentregistry.html", data)
 }
