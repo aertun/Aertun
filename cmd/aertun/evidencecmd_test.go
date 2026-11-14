@@ -229,7 +229,12 @@ func TestPlainTextYieldsOnlyWhatItCites(t *testing.T) {
 // and every parameter that is only compared comes back nowhere.
 func TestNothingTheAuthorWroteReachesTheProof(t *testing.T) {
 	root := evidenceSite(t)
-	const marker = "IGNORE-PREVIOUS PLANTED-MARKER 7f3a"
+	// The marker ends in hexadecimal, the shape a parser that kept ids would
+	// keep, and in twelve digits of it: a store's log and a proof's envelope
+	// are full of digests, where four turn up by chance about once in eighty
+	// runs, and twelve are no digest's length.
+	const tail = "7f3a9c1e5b2d"
+	const marker = "IGNORE-PREVIOUS PLANTED-MARKER " + tail
 	planted := strings.NewReplacer(`"Weekly review"`, `"`+marker+`"`,
 		`"What the analyst found"`, `"`+marker+`"`, `"the alert fired"`, `"`+marker+`"`,
 		`"actor":"dana@example.com"`, `"actor":"`+marker+`"`,
@@ -269,7 +274,7 @@ func TestNothingTheAuthorWroteReachesTheProof(t *testing.T) {
 		for where, b := range map[string][]byte{"the envelope": doc, "the payload": payload,
 			"the statement": statement, "the audit log": log, "the summary": []byte(describe(st)),
 			"the answers": []byte(strings.Join(answers, "\n"))} {
-			for _, part := range []string{"PLANTED", "IGNORE", "7f3a"} {
+			for _, part := range []string{"PLANTED", "IGNORE", tail} {
 				if bytes.Contains(b, []byte(part)) {
 					t.Errorf("%s: %s carries what the author wrote (%s)", name, where, part)
 				}
