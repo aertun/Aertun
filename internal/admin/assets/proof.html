@@ -35,7 +35,7 @@
 <table><tbody>
   <tr><th scope="row">Subject</th><td>{{template "fact" .Subject}}</td></tr>
   <tr><th scope="row">Verified</th><td>{{.VerifiedAt}}, by {{.Verifier}}</td></tr>
-  <tr><th scope="row">Signed by key</th><td><code>{{.KeyID}}</code></td></tr>
+  <tr><th scope="row">Signed by</th><td>{{if .Signer}}<span class="wf-word good">trusted signer</span> {{.Signer}}{{else}}<span class="wf-word warning">a key this store does not trust</span>{{end}} <code>{{.KeyID}}</code></td></tr>
   <tr><th scope="row">Kept</th><td>{{.KeptAt}} by {{.KeptBy}}, {{if eq .Origin "made-here"}}made here{{else}}handed in{{end}}</td></tr>
   <tr><th scope="row">Id</th><td><code>{{.ID}}</code></td></tr>
 </tbody></table>

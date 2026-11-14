@@ -128,6 +128,21 @@ func TestTheAgentInterfaceReadsProofsLabelledAndCannotKeepOne(t *testing.T) {
 		map[string]any{"envelope": "{}", "public_key": "{}"}); rerr == nil {
 		t.Error("the agent interface offered keep_proof")
 	}
+	// verify_proof checks a proof without keeping it, and says whether this
+	// store trusts the key; a key that did not sign it is refused.
+	pubBody, _ := os.ReadFile(pub)
+	rawEnv, _ := os.ReadFile(keptEnvelopeFile(t, root, id))
+	checked, rerr := callTool(t, srv, "aertun_read", "verify_proof",
+		map[string]any{"envelope": string(rawEnv), "public_key": string(pubBody)})
+	if rerr != nil || !strings.Contains(checked, `"trusted":{"value":false`) ||
+		!strings.Contains(checked, `"verdict":{"value":"refuted"`) {
+		t.Errorf("verify_proof: %v %s", rerr, checked)
+	}
+	otherBody, _ := os.ReadFile(otherPubFile(t))
+	if _, rerr := callTool(t, srv, "aertun_read", "verify_proof",
+		map[string]any{"envelope": string(rawEnv), "public_key": string(otherBody)}); rerr == nil {
+		t.Error("verify_proof accepted a key that did not sign the proof")
+	}
 	// Once anything is granted, a read is authorised as every other read
 	// is, and somebody with no grant is refused.
 	if _, err := updatePolicy(root, func(p *auth.Policy) error {
@@ -180,4 +195,24 @@ func TestTheTwinAnswersProofsFromItsRecording(t *testing.T) {
 	if live, _ := proofstore.List(root); len(live) != 2 {
 		t.Fatalf("the store holds %d proofs, want 2", len(live))
 	}
+}
+
+// keptEnvelopeFile writes a kept proof's envelope to a file, as it would
+// be handed to somebody.
+func keptEnvelopeFile(t *testing.T, root, id string) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(proofstore.Dir(root), id+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var k proofstore.Kept
+	if err := json.Unmarshal(body, &k); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := json.Marshal(k.Envelope)
+	at := filepath.Join(t.TempDir(), "envelope.json")
+	if err := os.WriteFile(at, env, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return at
 }

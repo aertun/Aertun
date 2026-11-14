@@ -349,15 +349,6 @@ func onIsWeaker(cost string) func(string) (bool, string) {
 	}
 }
 
-func offIsWeaker(cost string) func(string) (bool, string) {
-	return func(v string) (bool, string) {
-		if b, err := strconv.ParseBool(v); err == nil && !b {
-			return true, cost
-		}
-		return false, ""
-	}
-}
-
 func atMost(limit int, format string) func(string) (bool, string) {
 	return func(v string) (bool, string) {
 		n, err := strconv.Atoi(v)
@@ -372,16 +363,6 @@ func atMostDur(limit time.Duration, format string) func(string) (bool, string) {
 	return func(v string) (bool, string) {
 		d, err := time.ParseDuration(v)
 		if err != nil || d <= limit {
-			return false, ""
-		}
-		return true, fmt.Sprintf(format, d)
-	}
-}
-
-func atLeastDur(limit time.Duration, format string) func(string) (bool, string) {
-	return func(v string) (bool, string) {
-		d, err := time.ParseDuration(v)
-		if err != nil || d >= limit {
 			return false, ""
 		}
 		return true, fmt.Sprintf(format, d)

@@ -147,13 +147,22 @@ func humanProofs(a *answer) string {
 			fmt.Fprintf(&b, "\n\n%s  BROKEN: %s", r.Get("id").Text(), br.Text())
 			continue
 		}
-		fmt.Fprintf(&b, "\n\n%s%s%s  %s, %s  %s\n  %s", bold, strings.ToUpper(r.Get("verdict").Text()), reset,
-			r.Get("kind").Text(), r.Get("id").Text(), r.Get("kept_at").Text(), r.Get("claim").Text())
+		fmt.Fprintf(&b, "\n\n%s%s%s  %s, %s  %s\n  %s\n  %s", bold, strings.ToUpper(r.Get("verdict").Text()), reset,
+			r.Get("kind").Text(), r.Get("id").Text(), r.Get("kept_at").Text(), r.Get("claim").Text(), signedBy(r))
 		if e := r.Get("expires"); e != nil {
 			fmt.Fprintf(&b, "\n  expires %s", e.Text())
 		}
 	}
 	return b.String()
+}
+
+// signedBy says whose key signed a proof: a signer this store trusts, by
+// name, or a key it does not.
+func signedBy(a *answer) string {
+	if s := a.Get("signer"); s != nil && s.Text() != "" {
+		return "signed by " + s.Text() + ", a trusted signer (key " + a.Get("key_id").Text() + ")"
+	}
+	return "signed by key " + a.Get("key_id").Text() + ", which this store does not trust"
 }
 
 // humanProof is one proof as a person reads it.
@@ -162,9 +171,9 @@ func humanProof(a *answer) string {
 	if br := a.Get("broken"); br != nil {
 		return a.Get("id").Text() + " no longer verifies: " + br.Text()
 	}
-	fmt.Fprintf(&b, "%s%s%s  %s  %s\n  %s\n  signed by key %s, kept %s by %s (%s)",
+	fmt.Fprintf(&b, "%s%s%s  %s  %s\n  %s\n  %s, kept %s by %s (%s)",
 		bold, strings.ToUpper(a.Get("verdict").Text()), reset, a.Get("kind").Text(),
-		a.Get("subject").Text(), a.Get("claim").Text(), a.Get("key_id").Text(),
+		a.Get("subject").Text(), a.Get("claim").Text(), signedBy(a),
 		a.Get("kept_at").Text(), a.Get("kept_by").Text(), a.Get("origin").Text())
 	for _, c := range a.Get("checks").Items() {
 		mark := "pass"

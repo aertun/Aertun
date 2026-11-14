@@ -123,7 +123,7 @@ func TestTheProofsScreenShowsWhatTheOperationLabelled(t *testing.T) {
 	// Each proof, in full: its checks, and the same marks.
 	for _, m := range regexp.MustCompile(`href="/proving/proofs/([0-9a-f]{24})"`).FindAllStringSubmatch(body, -1) {
 		page := getPage(t, srv, "/proving/proofs/"+m[1], token)
-		if !strings.Contains(page, "Checks") || !strings.Contains(page, "Signed by key") {
+		if !strings.Contains(page, "Checks") || !strings.Contains(page, "a key this store does not trust") {
 			t.Errorf("proof %s's page:\n%s", m[1], page)
 		}
 		if strings.Contains(page, provingMarker) && !strings.Contains(page, "untrusted") {

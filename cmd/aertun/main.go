@@ -36,13 +36,6 @@ var (
 	flagToken string
 )
 
-func overrideNote(forced bool, reason string) string {
-	if !forced {
-		return ""
-	}
-	return reason
-}
-
 // errBlocked marks a refusal by a gate rather than a failure of the command.
 type errBlocked struct{ error }
 
@@ -61,11 +54,27 @@ func (e errUsage) Unwrap() error { return e.error }
 var version = "dev"
 
 func usage() {
-	fmt.Print(`aertun — the wind tunnel for AI agents
+	fmt.Print(`aertun — the proving ground for AI security work
 
   aertun init [--owner NAME]               create a store, and its Owner
   aertun serve [--addr HOST:PORT]          the console, on loopback by default
   aertun mcp [--list] [--twin FILE]        the agent interface, over stdio; --twin answers from a recorded case
+
+Proving AI security work: checked against evidence the AI did not write, then signed
+  aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
+  aertun proof list [--kind K] | show ID | keep FILE --public-key F   the proofs kept here, as the console's Proofs screen and the agent interface show them
+  aertun proof signers | trust NAME --key F --why "…" | untrust NAME   the keys whose proofs speak for this store; trusting one takes two administrators
+  aertun analyst calibrate --key F [--out F] [--epsilon 0.05] [--delta 0.05] [--valid-for 720h]   the analyst's threshold fitted on verified people's verdicts, signed
+  aertun verdict import FILE --source NAME | list | prove --source NAME --since DATE --tolerance R --key F   another vendor's AI verdicts scored against people's decisions, signed
+  aertun adjudicate draw --source NAME --since DATE --per N | list | next SAMPLE | judge SAMPLE --item N --judgement W --because "…" | size | prove SAMPLE --tolerance R --key F   closures judged again blind, on a random sample committed first
+  aertun claim register NAME --source S --metric M --direction at-least|at-most --threshold R [--window-days 30] | list | test NAME --key F   a vendor's claim, pre-registered and tested once its window closes
+  aertun agent reconcile NAME --since DATE --key F   an agent's own account held against what was seen, signed
+  aertun vuln prove-vex FILE --source NAME --where ASSET --key F   another party's "not affected" statements held to the evidence, signed
+  aertun windtunnel run --sigma DIR [--mutate N] [--out F]   replay agent attacks against your own Sigma rules: the primary mode
+  aertun windtunnel run --score reference | list-scenarios | preflight | scorecard | diff OLD NEW | verify   the shipped pack, self-graded; signed only in CI; diff is the CI gate
+  aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
+  aertun twin record --out FILE | help     what the agent interface would answer now, in one file under its digest, for aertun mcp --twin to replay
+  aertun forge export --key F --out F [--public-key F] | verify FILE --key F [--log]   what the analyst saw and answered, and how a person ruled, as signed episodes for training
 
 Collecting what happens
   aertun connect catalogue | list          the connectors that ship, and those installed
@@ -98,17 +107,6 @@ Detecting and deciding
   aertun finding list [--state S --kind K] | risk | decide ID STATE | story [ID]
   aertun intel import FILE --source NAME | add VALUE --source NAME | list | remove ID
   aertun analyst plan | triage [--limit N] [--dry-run] [--calibration F --calibration-key F] | eval [--k 3]
-  aertun analyst calibrate --key F [--out F] [--epsilon 0.05] [--delta 0.05] [--valid-for 720h]   the analyst's threshold fitted on verified people's verdicts, signed
-  aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
-  aertun windtunnel run --sigma DIR [--mutate N] [--out F]   replay agent attacks against your own Sigma rules: the primary mode
-  aertun windtunnel run --score reference | list-scenarios | preflight | scorecard | diff OLD NEW | verify   the shipped pack, self-graded; signed only in CI; diff is the CI gate
-  aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
-  aertun proof list [--kind K] | show ID | keep FILE --public-key F   the proofs kept here, as the console's Proofs screen and the agent interface show them
-  aertun twin record --out FILE | help     what the agent interface would answer now, in one file under its digest, for aertun mcp --twin to replay
-  aertun forge export --key F --out F [--public-key F] | verify FILE --key F [--log]   what the analyst saw and answered, and how a person ruled, as signed episodes for training
-  aertun verdict import FILE --source NAME | list | prove --source NAME --since DATE --tolerance R --key F   another vendor's AI verdicts scored against people's decisions, signed
-  aertun adjudicate draw --source NAME --since DATE --per N | list | next SAMPLE | judge SAMPLE --item N --judgement W --because "…" | size | prove SAMPLE --tolerance R --key F   closures judged again blind, on a random sample committed first
-  aertun claim register NAME --source S --metric M --direction at-least|at-most --threshold R [--window-days 30] | list | test NAME --key F   a vendor's claim, pre-registered and tested once its window closes
   aertun automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   aertun automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
   aertun geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
@@ -132,7 +130,6 @@ Vulnerabilities and code
   aertun vuln asset MATCH --exposure E --impact I --because "…"
   aertun vuln assess CVE PKG STATUS | accept CVE PKG --owner W --until DATE --because "…"
   aertun vuln vex --author A --id URL      the decisions as an OpenVEX draft
-  aertun vuln prove-vex FILE --source NAME --where ASSET --key F   another party's "not affected" statements held to the evidence, signed
   aertun feed status                       what the scanner is working from, and how old it is
   aertun sca scan --bom sbom.json --osv db.json   which dependencies you can actually fix
   aertun sarif read results.sarif          import any scanner's findings, and what it left out
@@ -453,21 +450,6 @@ func main() {
 		}
 		os.Exit(out.ExitFailure)
 	}
-}
-
-// open is the one place any command gets a store, which is why encryption is
-// wired here: every command inherits it, including the ones added next year by
-// somebody who has not read this file.
-// reorder moves flags ahead of positional arguments.
-//
-// Go's flag package stops parsing at the first non-flag argument, so
-// `add index=home.json -m "msg"` treats -m as a filename. That is the natural
-// order to type and the CLI has to accept it, so flags are lifted out first.
-// `valued` names the flags that consume the following argument; a boolean flag
-// must not swallow the token after it.
-func reorder(args []string, valued map[string]bool) []string {
-	flags, positional := splitFlags(args, valued)
-	return append(flags, positional...)
 }
 
 // splitFlags separates the flags, and the values they consume, from the

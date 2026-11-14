@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -63,40 +62,6 @@ func loadJSON(path string, into any) error {
 		return err
 	}
 	return json.Unmarshal(b, into)
-}
-
-// loadRedirectFile reads the redirect map, refusing a field it does not know.
-//
-// Every other redirect file in the world says `"status": 301`, so that is what
-// people write here — and an unknown field decoded silently to nothing, leaving
-// an entry that served a temporary redirect while its file said permanent.
-// Nothing updates a bookmark or a search index on a 307, so the move never
-// finished and the file said it had.
-//
-// Strict for this file and not for the others on purpose: this one is written by
-// hand, by somebody who has written a different tool's version of it.
-func loadRedirectFile(path string, into any) error {
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(into); err != nil {
-		if strings.Contains(err.Error(), `unknown field "status"`) {
-			return fmt.Errorf(
-				"%s: a redirect says \"status\", which this does not read. "+
-					"Say \"permanent\": true for a move that is final and "+
-					"false for one that is not — 308 and 307, which preserve "+
-					"the request method where 301 and 302 let a browser turn "+
-					"a POST into a GET", path)
-		}
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	return nil
 }
 
 func saveJSON(path string, v any) error {

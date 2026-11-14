@@ -391,14 +391,3 @@ func authoriseUnder(root string, c *Caller, action auth.Action, area string) err
 	}
 	return err
 }
-
-// changedNames extracts page names from NAME=FILE arguments.
-func changedNames(specs []string) []string {
-	var out []string
-	for _, spec := range specs {
-		if name, _, ok := strings.Cut(spec, "="); ok {
-			out = append(out, name)
-		}
-	}
-	return out
-}

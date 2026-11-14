@@ -119,6 +119,8 @@ func applyDual(root string, r dual.Request, by string) error {
 		return applyOwner(root, r, ch)
 	case dual.Token:
 		return nil
+	case dual.Signer:
+		return applySigner(root, r)
 	}
 	return fmt.Errorf("request %s is a %q, which this version does not know how to apply", r.ID, r.Kind)
 }

@@ -98,9 +98,6 @@ const (
 	PhaseLive   = "live"
 )
 
-// Phases is the closed set.
-func Phases() []string { return []string{PhaseReplay, PhaseLive} }
-
 // Lateness sources, another closed set. "measured" derives arrival delay from
 // the base stream's own histogram; the profiles cover fixture corpora that
 // carry no arrival history of their own.

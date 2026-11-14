@@ -214,7 +214,7 @@ var coverage = map[string]surfaces{
 	// read on every face from one declaration (proofops.go). Making one
 	// signs with a key file, which stays on the command line; keeping one
 	// is a change, which the agent interface does not offer.
-	"proof": {GUI: "/proving/proofs", MCP: []string{"list_proofs", "read_proof"}},
+	"proof": {GUI: "/proving/proofs", MCP: []string{"list_proofs", "read_proof", "verify_proof"}},
 	// The context twin's recorder: the agent interface's answers, as of
 	// now, in one file under its digest.
 	"twin": {

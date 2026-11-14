@@ -60,7 +60,8 @@ func wordsFrom(st *proof.Statement) func(string) *ops.Answer {
 
 func entryRow(e proofstore.Entry) *ops.Answer {
 	row := ops.Object().With("id", ops.Ours(e.ID)).With("kept_at", ops.Ours(e.KeptAt)).
-		With("kept_by", ops.Ours(e.KeptBy)).With("origin", ops.Ours(e.Origin)).With("key_id", ops.Ours(e.KeyID))
+		With("kept_by", ops.Ours(e.KeptBy)).With("origin", ops.Ours(e.Origin)).With("key_id", ops.Ours(e.KeyID)).
+		With("signer", ops.Ours(e.Signer)).With("trusted", ops.Ours(e.Signer != ""))
 	if e.Broken != "" {
 		return row.With("broken", ops.Ours(e.Broken))
 	}
@@ -81,6 +82,8 @@ func entryRow(e proofstore.Entry) *ops.Answer {
 type Source interface {
 	List() ([]proofstore.Entry, error)
 	Get(id string) (proofstore.Entry, error)
+	// Trusted is the trusted signers' names by key fingerprint.
+	Trusted() (map[string]string, error)
 }
 
 // Store is the kept proofs of the store at its root, read and checked again
@@ -93,12 +96,37 @@ func (s Store) List() ([]proofstore.Entry, error) { return proofstore.List(strin
 // Get is one kept proof.
 func (s Store) Get(id string) (proofstore.Entry, error) { return proofstore.Get(string(s), id) }
 
+// Trusted is the store's trusted signers.
+func (s Store) Trusted() (map[string]string, error) {
+	signers, err := proofstore.Signers(string(s))
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(signers))
+	for _, g := range signers {
+		out[g.KeyID] = g.Name
+	}
+	return out, nil
+}
+
 // Recorded is kept proofs as they were read once: what a recorded case holds.
 type Recorded []proofstore.Entry
 
 // List is every recorded proof.
 func (r Recorded) List() ([]proofstore.Entry, error) {
 	return append([]proofstore.Entry(nil), r...), nil
+}
+
+// Trusted is the signers the recorded proofs were labelled with when they
+// were recorded: trust as it stood then, which is what a replay answers.
+func (r Recorded) Trusted() (map[string]string, error) {
+	out := map[string]string{}
+	for _, e := range r {
+		if e.Signer != "" {
+			out[e.KeyID] = e.Signer
+		}
+	}
+	return out, nil
 }
 
 // Get is one recorded proof.
@@ -287,6 +315,43 @@ func Ops(root string) *ops.Registry {
 	return r
 }
 
+// verifyOp checks a proof made anywhere against the public key that
+// signed it, keeping nothing: what an agent in a pipeline, or a person
+// handed a proof, asks before relying on it. The answer says whether the
+// key is one this store trusts (internal/proofstore's signers), because a
+// signature only says which key signed, never whose.
+func verifyOp(src Source) ops.Op {
+	return ops.Op{Name: "verify_proof",
+		Summary: "check a signed proof against its public key, and whether this store trusts that key",
+		Detail: "Keeps nothing. A proof that does not verify is refused, and one that does " +
+			"is answered with its verdict, its claim and the signer this store trusts it as, if any.",
+		Needs: auth.ActView, Area: auth.AreaSecurity, Effect: ops.Read,
+		Args: []ops.Arg{
+			{Name: "envelope", Kind: ops.Document, Required: true, Positional: true, Max: proof.MaxEnvelope,
+				About: "the signed proof (a DSSE envelope)"},
+			{Name: "public_key", Kind: ops.Document, Required: true, Max: 64 << 10,
+				About: "the public key that signed it"},
+		},
+		Keywords: []string{"verify", "proof", "signature", "trusted", "signer"},
+		Run: func(c ops.Call) (*ops.Answer, error) {
+			st, kid, err := proofstore.Check([]byte(c.Args.Text("envelope")), []byte(c.Args.Text("public_key")))
+			if err != nil {
+				return nil, &ops.Refusal{Reason: err.Error()}
+			}
+			trusted, err := src.Trusted()
+			if err != nil {
+				return nil, err
+			}
+			signer := trusted[kid]
+			words := wordsFrom(st)
+			return ops.Object().With("verdict", ops.Ours(string(st.Predicate.Verdict))).
+				With("kind", ops.Ours(proofKind(st))).With("subject", words(st.Subject[0].Name)).
+				With("claim", words(st.Predicate.Claim)).With("verified_at", ops.Ours(st.Predicate.VerifiedAt)).
+				With("key_id", ops.Ours(kid)).With("signer", ops.Ours(signer)).
+				With("trusted", ops.Ours(signer != "")), nil
+		}}
+}
+
 // ReadOps is the proving ground's reads over src alone: what a recorded case
 // can answer, with nothing to change.
 func ReadOps(src Source) *ops.Registry {
@@ -314,6 +379,7 @@ func addReads(r *ops.Registry, src Source) {
 			About: "the proof's id, as list_proofs gives it"}},
 		Keywords: []string{"proof", "evidence", "checks", "claim"},
 		Run:      readProof(src)})
+	r.Add(verifyOp(src))
 }
 
 func keepOp(root string) ops.Op {

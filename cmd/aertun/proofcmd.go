@@ -38,7 +38,7 @@ import (
 // interface run: they read and add to the proofs kept in the store.
 func cmdProof(root string, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("proof needs detection, verify, list, show or keep")
+		return fmt.Errorf("proof needs detection, verify, list, show, keep, signers, trust or untrust")
 	}
 	switch args[0] {
 	case "detection":
@@ -57,8 +57,14 @@ func cmdProof(root string, args []string) error {
 			return "kept, as " + a.Get("id").Text() + ": " + strings.ToUpper(a.Get("verdict").Text()) +
 				" " + a.Get("kind").Text() + " proof"
 		})
+	case "signers":
+		return proofSigners(root, args[1:])
+	case "trust":
+		return proofTrust(root, args[1:])
+	case "untrust":
+		return proofUntrust(root, args[1:])
 	default:
-		return fmt.Errorf("unknown proof command %q; try detection, verify, list, show or keep", args[0])
+		return fmt.Errorf("unknown proof command %q; try detection, verify, list, show, keep, signers, trust or untrust", args[0])
 	}
 }
 

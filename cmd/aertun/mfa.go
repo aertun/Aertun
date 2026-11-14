@@ -5,11 +5,8 @@ package main
 
 import (
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
-	"github.com/aertun/aertun/internal/admin"
 	"github.com/aertun/aertun/internal/atomicfile"
 )
 
@@ -62,58 +59,4 @@ func mfaFromIfSet(root string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return st.EnforcedFrom, !st.EnforcedFrom.IsZero()
-}
-
-// withoutSecondFactor are the people with access here who have no way to
-// sign in with two factors: no passkey, and no single sign-on that covers
-// their address and can say it used two (a SAML provider with no way set
-// up to say so cannot). Anybody whose only bindings deny is left out.
-func withoutSecondFactor(root string) []string {
-	pol, err := loadPolicy(root)
-	if err != nil || pol == nil {
-		return nil
-	}
-	pk := &admin.Passkeys{}
-	_ = loadJSON(passkeysPath(root), pk)
-	keyed := map[string]bool{}
-	for _, c := range pk.Credentials {
-		keyed[strings.ToLower(c.Principal)] = true
-	}
-	samls, _ := loadSAML(root)
-	oidc, _ := loadOIDC(root)
-	covered := func(name string) bool {
-		for i := range samls {
-			if samls[i].Owns(name) && samls[i].SaysMFA() {
-				return true
-			}
-		}
-		if oidc == nil || !strings.Contains(name, "@") {
-			return false
-		}
-		if len(oidc.Domains) == 0 {
-			return true
-		}
-		_, domain, _ := strings.Cut(strings.ToLower(name), "@")
-		for _, d := range oidc.Domains {
-			if strings.EqualFold(d, domain) {
-				return true
-			}
-		}
-		return false
-	}
-	grants := map[string]bool{}
-	for _, b := range pol.Bindings {
-		if !b.Deny {
-			grants[b.Principal] = true
-		}
-	}
-	var out []string
-	for name := range grants {
-		if keyed[strings.ToLower(name)] || covered(name) {
-			continue
-		}
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
 }

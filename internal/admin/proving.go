@@ -109,9 +109,9 @@ func (s *Server) invokeOp(w http.ResponseWriter, r *http.Request, p principal, n
 
 // proofRow is one kept proof on the list.
 type proofRow struct {
-	ID, Kind, Verdict, Tone, KeptAt, KeptBy, Origin, KeyID, Expires, Broken string
-	Subject, Claim                                                          fact
-	Expired                                                                 bool
+	ID, Kind, Verdict, Tone, KeptAt, KeptBy, Origin, KeyID, Signer, Expires, Broken string
+	Subject, Claim                                                                  fact
+	Expired                                                                         bool
 }
 
 // verdictTone is the colour word a verdict is shown in, beside its name,
@@ -145,7 +145,7 @@ func (s *Server) handleProofs(w http.ResponseWriter, r *http.Request) {
 	var rows []proofRow
 	for _, it := range a.Get("proofs").Items() {
 		row := proofRow{ID: it.Get("id").Text(), KeptBy: it.Get("kept_by").Text(),
-			Origin: it.Get("origin").Text(), KeyID: it.Get("key_id").Text()}
+			Origin: it.Get("origin").Text(), KeyID: it.Get("key_id").Text(), Signer: it.Get("signer").Text()}
 		if t, ok := it.Get("kept_at").Value().(time.Time); ok {
 			row.KeptAt = t.Format("2 Jan 2006 15:04")
 		}
@@ -214,7 +214,7 @@ func (s *Server) handleProof(w http.ResponseWriter, r *http.Request) {
 	type number struct{ Label, Value string }
 	data := map[string]any{"Nav": "proofs", "Title": "Proof", "Principal": p,
 		"Message": r.URL.Query().Get("m"), "ID": a.Get("id").Text(), "KeptBy": a.Get("kept_by").Text(),
-		"Origin": a.Get("origin").Text(), "KeyID": a.Get("key_id").Text()}
+		"Origin": a.Get("origin").Text(), "KeyID": a.Get("key_id").Text(), "Signer": a.Get("signer").Text()}
 	if t, ok := a.Get("kept_at").Value().(time.Time); ok {
 		data["KeptAt"] = t.Format("2 Jan 2006 15:04 MST")
 	}

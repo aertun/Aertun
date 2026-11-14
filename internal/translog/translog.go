@@ -371,8 +371,6 @@ func consumeConsistency(m, n int, isRoot bool, proof [][]byte, oldRoot []byte) (
 	return HashNode(left, o), HashNode(left, u), rest[1:], nil
 }
 
-func isPowerOfTwo(n int) bool { return n > 0 && n&(n-1) == 0 }
-
 func toHex(hs [][]byte) []string {
 	out := make([]string, len(hs))
 	for i, h := range hs {

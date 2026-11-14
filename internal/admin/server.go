@@ -1591,30 +1591,3 @@ func initialOf(name string) string {
 	}
 	return "?"
 }
-
-// ranAgo is when a scan ran, as a person says it: "just now", "5 min ago".
-// The report keeps the exact time; the screen does not need it.
-func ranAgo(at string) string {
-	t, err := time.Parse(time.RFC3339, at)
-	if err != nil {
-		return at
-	}
-	return agoText(time.Since(t))
-}
-
-// landing is where somebody with no pages to read starts: their first
-// screen, passing over the audit log, which is evidence to consult rather
-// than where a day's work begins.
-func landing(ds []destination) string {
-	for _, d := range ds {
-		if d.Key != "logs" && d.Key != "today" && d.Path != "/" {
-			return d.Path
-		}
-	}
-	for _, d := range ds {
-		if d.Path != "/" {
-			return d.Path
-		}
-	}
-	return ""
-}

@@ -78,6 +78,9 @@ type Entry struct {
 	// Broken is why the kept file no longer verifies, or no longer reads as
 	// one; empty when it does.
 	Broken string `json:"broken,omitempty"`
+	// Signer is the name of the trusted signer whose key signed it, worked
+	// out when it is read; empty when this store does not trust that key.
+	Signer string `json:"signer,omitempty"`
 }
 
 var idShape = regexp.MustCompile(`^[0-9a-f]{24}$`)
@@ -193,7 +196,13 @@ func Get(root, id string) (Entry, error) {
 	if err != nil {
 		return Entry{}, err
 	}
-	return read(id, body), nil
+	signers, err := Signers(root)
+	if err != nil {
+		return Entry{}, err
+	}
+	e := read(id, body)
+	e.Signer = SignerOf(signers, e.KeyID)
+	return e, nil
 }
 
 // read turns a kept file into an entry, checking it as Keep did. A file that
@@ -234,6 +243,10 @@ func List(root string) ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
+	signers, err := Signers(root)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Entry, 0, len(names))
 	for _, id := range names {
 		body, err := proof.ReadBounded(filepath.Join(dir, id+".json"), maxFile)
@@ -241,7 +254,9 @@ func List(root string) ([]Entry, error) {
 			out = append(out, Entry{ID: id, Broken: "the file could not be read"})
 			continue
 		}
-		out = append(out, read(id, body))
+		e := read(id, body)
+		e.Signer = SignerOf(signers, e.KeyID)
+		out = append(out, e)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].KeptAt.After(out[j].KeptAt) })
 	return out, nil

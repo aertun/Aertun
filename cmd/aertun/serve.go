@@ -597,14 +597,6 @@ func cmdServe(root string, args []string) error {
 	return listen.Uploads().Serve(httpSrv)
 }
 
-// sessionCaller is a person signed in to the console, verified, with the
-// limits of the credential their session was made from. They cap what the
-// session may do on the command line's side exactly as they do there.
-func sessionCaller(by admin.Actor) *Caller {
-	return &Caller{Name: by.Name, Kind: audit.KindHuman, Verified: true,
-		Role: by.Role, Scope: by.Scope, Limits: by.Limits}
-}
-
 // upkeepJobs is everything the server does on its timer.
 func upkeepJobs(root string) []upkeep.Job {
 	return []upkeep.Job{estateJob(root), collectJob(root), detectJob(root)}

@@ -29,10 +29,11 @@
     <td>{{.Kind}}</td>
     {{end}}
     <td>{{.KeptAt}}<br><span class="hint">{{.KeptBy}}, {{if eq .Origin "made-here"}}made here{{else}}handed in{{end}}</span></td>
-    <td><code>{{.KeyID}}</code></td>
+    <td>{{if .Signer}}<span class="wf-word good">trusted</span> {{.Signer}}{{else}}<span class="wf-word warning">key not trusted here</span>{{end}}<br><code class="hint">{{.KeyID}}</code></td>
   </tr>{{end}}</tbody></table></div>
-<p class="hint">{{len .Rows}} of {{.Kept}} shown, newest first. A proof says the key
-  signed it; whether that key is one to believe is yours to judge, by its fingerprint.</p>
+<p class="hint">{{len .Rows}} of {{.Kept}} shown, newest first. A signature says which key
+  signed a proof, never whose: a proof counts as this organisation's only when its key is one of the
+  signers this store trusts (<code>aertun proof signers</code>), added by one administrator and approved by another.</p>
 {{else}}{{if .Kept}}<p>No proof of that kind is kept.</p>{{else}}
 <p>No proofs are kept yet. <code>aertun verdict prove</code>,
   <code>aertun analyst calibrate</code> and <code>aertun agent reconcile</code> keep the proofs they make; a proof made

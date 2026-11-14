@@ -775,12 +775,6 @@ func cmdGeo(root string, args []string) error {
 	return geoUsage()
 }
 
-// automateEvent is a finding-shaped event about somebody, for tests and the
-// command line.
-func automateEvent(subject string) automate.Event {
-	return automate.Event{Kind: "finding", Subject: subject, Summary: "seen elsewhere: " + subject}
-}
-
 // sessionHooks are the admin's other ways into the rules: where a request
 // is from, a session seen elsewhere, a person reporting a sign-in, and one
 // more signal about a sign-in.

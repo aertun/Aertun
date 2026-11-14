@@ -229,13 +229,6 @@ func Refusals() map[string]int {
 	return out
 }
 
-// ResetRefusals clears the counters, for tests.
-func ResetRefusals() {
-	mu.Lock()
-	defer mu.Unlock()
-	refused = map[string]int{}
-}
-
 // Blocked is returned when a dial is refused by the mode rather than by the
 // network. Distinguished so a caller can tell a policy decision from an
 // outage, and say so.

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -878,25 +877,4 @@ type agentsSeen struct {
 
 func agentsSeenPath(root string) string {
 	return filepath.Join(agentsDir(root), "observed.json")
-}
-
-func loadAgentsSeen(root string) (agentsSeen, error) {
-	s := agentsSeen{Did: map[string][]string{}, First: map[string]time.Time{}}
-	b, err := os.ReadFile(agentsSeenPath(root))
-	if os.IsNotExist(err) {
-		return s, nil
-	}
-	if err != nil {
-		return s, err
-	}
-	if err := json.Unmarshal(b, &s); err != nil {
-		return s, fmt.Errorf("observed.json: %w", err)
-	}
-	if s.Did == nil {
-		s.Did = map[string][]string{}
-	}
-	if s.First == nil {
-		s.First = map[string]time.Time{}
-	}
-	return s, nil
 }

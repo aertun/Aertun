@@ -62,7 +62,18 @@ const (
 	// it is the one change that cannot be undone by the person it is
 	// taken from.
 	Owner = "owner"
+	// Signer is a key trusted to sign proofs in this store's name
+	// (internal/proofstore): every proof it signs is shown as trusted.
+	Signer = "signer"
 )
+
+// SignerChange is a Signer request: the name, the public key document and
+// why it is to be trusted.
+type SignerChange struct {
+	Name string          `json:"name"`
+	Key  json.RawMessage `json:"public_key"`
+	Why  string          `json:"why"`
+}
 
 // OwnerChange names who is to be the Owner.
 type OwnerChange struct {

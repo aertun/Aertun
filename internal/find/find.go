@@ -241,10 +241,3 @@ func ranked(hits []Hit) []Hit {
 	})
 	return hits
 }
-
-func shorten(in []string, max int) []string {
-	if len(in) <= max {
-		return in
-	}
-	return append(in[:max:max], "…")
-}

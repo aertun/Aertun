@@ -61,22 +61,6 @@ func (s *Server) proofOf(r *http.Request, token string) (string, error) {
 	return dpop.Check(proofs[0], r.Method, s.requestURL(r), token, time.Now(), s.proofs)
 }
 
-// tokenChallenge answers a refused token with what this server accepts: a
-// Bearer token, or a DPoP-bound one, and what was wrong.
-func tokenChallenge(w http.ResponseWriter, extra string, err error) {
-	bearer, proof := `Bearer realm="aertun"`+extra, `DPoP algs="`+dpop.AlgorithmNames()+`"`
-	switch {
-	case errors.Is(err, dpop.ErrProof):
-		proof += `, error="invalid_dpop_proof"`
-	case errors.Is(err, auth.ErrKeyBound):
-		proof += `, error="invalid_token"`
-	case err != nil:
-		bearer += `, error="invalid_token"`
-	}
-	w.Header().Add("WWW-Authenticate", bearer)
-	w.Header().Add("WWW-Authenticate", proof)
-}
-
 type exchangeAnswer struct {
 	AccessToken     string `json:"access_token"`
 	IssuedTokenType string `json:"issued_token_type"`
