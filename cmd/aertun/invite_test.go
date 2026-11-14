@@ -4,6 +4,8 @@
 package main
 
 import (
+	"io"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -92,5 +94,52 @@ func TestAnInvitationThatCannotGrantGivesNoLink(t *testing.T) {
 	}
 	if links, _ := enrolStore(root).Waiting(time.Now()); len(links) != 0 {
 		t.Fatalf("a refused invitation left a link: %+v", links)
+	}
+}
+
+// stdoutOf runs fn and returns what it wrote to standard output: some
+// commands print with fmt rather than through the writer a test swaps.
+func stdoutOf(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, wr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = wr
+	done := make(chan string)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+	fn()
+	os.Stdout = old
+	_ = wr.Close()
+	return <-done
+}
+
+// A grant says what the person can do once it is made, read from the policy
+// with the grant in it. It used to read the policy loaded before the grant,
+// and told an operator that somebody just made an analyst "can now: nothing".
+func TestAGrantSaysWhatThePersonCanNowDo(t *testing.T) {
+	root := ownedStore(t)
+	asOnly(t, root, "dana")
+	out := stdoutOf(t, func() {
+		if err := cmdAuth(root, []string{"grant", "ana@acme.example", "analyst"}); err != nil {
+			t.Error(err)
+		}
+	})
+	if !strings.Contains(out, "can now: view, triage on /") {
+		t.Errorf("the grant's summary:\n%s", out)
+	}
+	out = stdoutOf(t, func() {
+		if err := cmdAuth(root, []string{"deny", "ana@acme.example", "analyst"}); err != nil {
+			t.Error(err)
+		}
+	})
+	// The deny takes triage away and leaves what the grant's lower rungs
+	// still give: the summary follows the policy, not the last word typed.
+	if !strings.Contains(out, "can now: view on /") {
+		t.Errorf("after a deny, the summary:\n%s", out)
 	}
 }

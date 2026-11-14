@@ -272,10 +272,6 @@ func authGrant(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	p, err := loadPolicy(root)
-	if err != nil {
-		return err
-	}
 	// A job is the bindings it stands for, each on its own area. See
 	// auth.Jobs: granting one is granting exactly those.
 	bindings := []auth.Binding{{Principal: rest[0], Role: auth.Role(rest[1]), Resource: *on}}
@@ -310,7 +306,9 @@ func authGrant(root string, args []string) error {
 			return err
 		}
 	}
-	if _, err := updatePolicy(root, func(p *auth.Policy) error {
+	// The policy as it stands once the grant is in it: what "can now" below
+	// is read from. The copy loaded above is the policy before the grant.
+	after, err := updatePolicy(root, func(p *auth.Policy) error {
 		for _, b := range bindings {
 			b.Deny, b.GrantedBy, b.Note, b.Expires = *deny, by2, *note, expires
 			if err := p.Grant(b); err != nil {
@@ -318,7 +316,8 @@ func authGrant(root string, args []string) error {
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
@@ -362,7 +361,7 @@ func authGrant(root string, args []string) error {
 	fmt.Printf("  %s%s can now: ", dim, rest[0])
 	var can []string
 	for _, a := range auth.Actions() {
-		if p.Evaluate(rest[0], a, *on).Allowed {
+		if after.Evaluate(rest[0], a, *on).Allowed {
 			can = append(can, string(a))
 		}
 	}
