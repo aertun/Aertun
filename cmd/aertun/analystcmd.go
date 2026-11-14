@@ -859,6 +859,11 @@ func analystEval(root string, args []string) error {
 	for _, n := range rep.HijackedCases {
 		w.Human("      %s%s%s\n", dim, n, reset)
 	}
+	if rep.AlreadyThere > 0 {
+		w.Human("  %s%d more gave that answer with nothing planted, so "+
+			"nothing was: wrong above, not hijacked%s\n", dim,
+			rep.AlreadyThere, reset)
+	}
 	w.Human("\n  %seven hijacked, the analyst can only suggest: a person "+
 		"records every verdict%s\n", dim, reset)
 	return nil
